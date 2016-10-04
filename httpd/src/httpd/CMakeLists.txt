@@ -1,7 +1,7 @@
 # test program
 define_module(BINARY httpd
   DEPENDS
-  httplib http service
+  vts-libs-core http service
 
   Boost_SERIALIZATION
   Boost_FILESYSTEM
@@ -9,19 +9,29 @@ define_module(BINARY httpd
   )
 
 set(httpd_SOURCES
+  sink.hpp sink.cpp
+  fileclass.hpp fileclass.cpp
+  config.hpp config.cpp
+
+  delivery/variables.hpp
+  delivery/vts/driver.hpp delivery/vts/driver.cpp
+  delivery/vts0/driver.hpp delivery/vts0/driver.cpp
+  delivery/tileset/driver.hpp delivery/tileset/driver.cpp
+  delivery/driver.hpp
+
   main.cpp
   )
 
-add_executable(vts-httpd ${httpd_SOURCES} ${httpd_BROWSER_SOURCES})
-target_link_libraries(vts-httpd ${MODULE_LIBRARIES})
-buildsys_target_compile_definitions(vts-httpd ${MODULE_DEFINITIONS})
-buildsys_binary(vts-httpd)
-set_target_version(vts-httpd ${httpd_VERSION})
+add_executable(vtshttpd ${httpd_SOURCES} ${httpd_BROWSER_SOURCES})
+target_link_libraries(vtshttpd ${MODULE_LIBRARIES})
+buildsys_target_compile_definitions(vtshttpd ${MODULE_DEFINITIONS})
+buildsys_binary(vtshttpd)
+set_target_version(vtshttpd ${httpd_VERSION})
 
 # ------------------------------------------------------------------------
 # --- installation
 # ------------------------------------------------------------------------
 
 # binaries
-install(TARGETS vts-httpd RUNTIME DESTINATION bin
+install(TARGETS vtshttpd RUNTIME DESTINATION bin
   COMPONENT main)
