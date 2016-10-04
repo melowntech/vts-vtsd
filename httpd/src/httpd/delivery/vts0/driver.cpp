@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include "vts-libs/storage/error.hpp"
 
 #include "vts-libs/vts0/driver.hpp"
@@ -23,7 +25,14 @@ namespace constants {
 
 } // namespace
 
-Vts0FileInfo::Vts0FileInfo(const std::string &p, int flags)
+struct Vts0FileInfo : public FileInfo {
+    // tileId, valid only when (type == Type::tileFile)
+    vadstena::vts0::TileId tileId;
+
+    Vts0FileInfo(const std::string &path, const LocationConfig &config);
+};
+
+Vts0FileInfo::Vts0FileInfo(const std::string &p, const LocationConfig &config)
     : FileInfo(p)
 {
     if (vts0::fromFilename(tileId, tileFile, path.c_str())) {
@@ -37,7 +46,7 @@ Vts0FileInfo::Vts0FileInfo(const std::string &p, int flags)
         return;
     }
 
-    if (flags & TILESET_OPEN_DISABLE_BROWSER) {
+    if (!config.enableBrowser) {
         LOG(debug) << "Browser disabled, skipping browser files.";
         return;
     }
@@ -74,58 +83,38 @@ public:
     virtual void handle(Sink sink, const std::string &path
                         , const LocationConfig &config);
 
-#if 0
-    virtual std::unique_ptr<Handle>
-    openFile(LockGuard::OptionalMutex &mutex, const std::string &path
-             , int flags, const tileset_Variables::Wrapper &variables);
-#endif
-
 private:
     vts0::Driver::pointer driver_;
+    std::mutex mutex_;
 };
 
 void Vts0Driver::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
 {
-    (void) sink;
-    (void) path;
-    (void) config;
-    throw InternalError("Not implemented yet");
-}
-
-#if 0
-std::unique_ptr<Handle>
-Vts0Driver::openFile(LockGuard::OptionalMutex &mutex, const std::string &path
-                    , int flags, const tileset_Variables::Wrapper &variables)
-{
-    Vts0FileInfo info(path, flags);
-
-    LockGuard guard(mutex);
+    Vts0FileInfo info(path, config);
 
     switch (info.type) {
-    case FileInfo::Type::file:
-        return std::unique_ptr<Handle>
-            (new StreamHandle
-             (driver_->input(info.file), TILESET_FILETYPE_FILE));
+    case FileInfo::Type::file: {
+        std::unique_lock<std::mutex> guard(mutex_);
+        return sink.content(driver_->input(info.file), FileClass::config);
+    }
 
     case FileInfo::Type::tileFile:
-        return std::unique_ptr<Handle>
-            (new StreamHandle
-             (driver_->input(info.tileId, info.tileFile)
-              , TILESET_FILETYPE_TILE));
+    {
+        std::unique_lock<std::mutex> guard(mutex_);
+        return sink.content(driver_->input(info.tileId, info.tileFile)
+                            , FileClass::data);
+    }
 
     case FileInfo::Type::support:
-        return std::unique_ptr<Handle>
-            (new BrowserFileHandle(info.support->second, variables));
+        return sink.content(info.support->second);
 
     default: break;
     }
 
-    LOGTHROW(err1, vs::NoSuchFile)
-        << "Unknown file to open: \"" << info.path << "\".";
-    throw; // shut up, compiler
+    // wtf?
+    sink.error(utility::makeError<NotFound>("Unknown file."));
 }
-#endif
 
 } // namespace
 

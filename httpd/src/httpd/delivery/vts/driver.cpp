@@ -270,25 +270,23 @@ void VtsTileSet::handle(Sink sink, const std::string &path
 
     switch (info.type) {
     case FileInfo::Type::definition:
-        sink.content(definition_.data, fileinfo(definition_.stat, -1));
-        return;
+        return sink.content(definition_.data, fileinfo(definition_.stat, -1));
 
     case FileInfo::Type::dirs:
-        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
-        return;
+        return sink.content(mapConfig_.dirsData
+                            , fileinfo(mapConfig_.dirsStat, -1));
 
     case FileInfo::Type::file:
         if ((info.file == vs::File::config) && !info.raw) {
             // serve updated map config
-            sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
-            return;
+            return sink.content(mapConfig_.data
+                                , fileinfo(mapConfig_.stat, -1));
         }
 
         // serve internal file
         {
             std::unique_lock<std::mutex> guard(mutex_);
-            sink.content(delivery_->input(info.file), FileClass::data);
-            return;
+            return sink.content(delivery_->input(info.file), FileClass::data);
         }
 
     case FileInfo::Type::tileFile: {
@@ -316,10 +314,9 @@ void VtsTileSet::handle(Sink sink, const std::string &path
         // unknown file, let's test other members
         if (info.registry) {
             // it's registry file!
-            sink.content(vs::fileIStream(info.registry->contentType
-                                         , info.registry->path)
-                         , FileClass::registry);
-            return;
+            return  sink.content(vs::fileIStream(info.registry->contentType
+                                                 , info.registry->path)
+                                 , FileClass::registry);
         }
         break;
 
@@ -362,22 +359,20 @@ void VtsStorage::handle(Sink sink, const std::string &path
     VtsFileInfo info(path, config);
 
     if (path == constants::Config) {
-        sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
-        return;
+        return sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
     }
 
     if (path == constants::Dirs) {
-        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
-        return;
+        return sink.content(mapConfig_.dirsData
+                            , fileinfo(mapConfig_.dirsStat, -1));
     }
 
     // unknonw file, let's test other members
     if (info.registry) {
         // it's registry file!
-        sink.content(vs::fileIStream(info.registry->contentType
-                                     , info.registry->path)
-                     , FileClass::registry);
-        return;
+        return sink.content(vs::fileIStream(info.registry->contentType
+                                            , info.registry->path)
+                            , FileClass::registry);
     }
 
     if (info.support) {
@@ -387,8 +382,7 @@ void VtsStorage::handle(Sink sink, const std::string &path
         }
 
         // support file
-        sink.content(info.support->second);
-        return;
+        return sink.content(info.support->second);
     }
 
     // wtf?
@@ -429,28 +423,25 @@ void VtsStorageView::handle(Sink sink, const std::string &path
     VtsFileInfo info(path, config);
 
     if (path == constants::Config) {
-        sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
-        return;
+        return sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
     }
 
     if (path == constants::Dirs) {
-        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
-        return;
+        return sink.content(mapConfig_.dirsData
+                            , fileinfo(mapConfig_.dirsStat, -1));
     }
 
     // unknonw file, let's test other members
     if (info.registry) {
         // it's registry file!
-        sink.content(vs::fileIStream(info.registry->contentType
-                                     , info.registry->path)
-                     , FileClass::registry);
-        return;
+        return sink.content(vs::fileIStream(info.registry->contentType
+                                            , info.registry->path)
+                            , FileClass::registry);
     }
 
     if (info.support) {
         // support file
-        sink.content(info.support->second);
-        return;
+        return sink.content(info.support->second);
     }
 
     // wtf?
