@@ -342,6 +342,21 @@ void Daemon::handleDataset(const fs::path &filePath
             return;
         }
         sink->error(utility::makeError<Forbidden>("Unbrowsable"));
+    } catch (const std::system_error &e) {
+        LOG(err1) << e.what();
+        if (e.code().category() == std::system_category()) {
+            if (e.code().value() == ENOENT) {
+                return sink->error
+                    (utility::makeError<NotFound>("No such file"));
+            }
+        }
+    } catch (const vs::NoSuchFile &e) {
+        LOG(err1) << e.what();
+        sink->error(utility::makeError<NotFound>("No such file"));
+
+    } catch (std::domain_error &e) {
+        LOG(err1) << e.what();
+        sink->error(utility::makeError<NotFound>("Domain error"));
     }
 
     (void) request;
