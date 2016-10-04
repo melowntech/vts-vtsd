@@ -306,10 +306,6 @@ void Daemon::handleDataset(const fs::path &filePath
     auto parent(filePath.parent_path());
     auto file(filePath.filename());
 
-    LOG(info4) << "filePath: " << filePath;
-    LOG(info4) << "parent: " << parent;
-    LOG(info4) << "file: " << file;
-
     try {
         deliveryCache_.get(parent.string(), 0)
             ->handle(Sink(sink, location), file.string(), location);
