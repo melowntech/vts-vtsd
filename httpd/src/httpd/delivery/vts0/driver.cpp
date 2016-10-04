@@ -8,7 +8,6 @@
 #include "vts-libs/vts0/driver/tilardriver.hpp"
 #include "vts-libs/vts0/config.hpp"
 
-#include "../vadstena-http.h"
 #include "./driver.hpp"
 
 namespace fs = boost::filesystem;

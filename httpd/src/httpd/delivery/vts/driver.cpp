@@ -7,7 +7,6 @@
 #include "vts-libs/vts/tileset/delivery.hpp"
 #include "vts-libs/storage/fstreams.hpp"
 
-#include "../vadstena-http.h"
 #include "./driver.hpp"
 
 namespace fs = boost::filesystem;

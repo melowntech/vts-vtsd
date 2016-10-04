@@ -7,8 +7,6 @@
 
 #include "utility/raise.hpp"
 
-#include "./vadstena-http.h"
-
 #include "../sink.hpp"
 #include "../config.hpp"
 
