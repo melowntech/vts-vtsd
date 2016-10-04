@@ -3,26 +3,13 @@
 namespace po = boost::program_options;
 
 void LocationConfig::configuration(po::options_description &od
-                                   , const std::string &prefix
-                                   , bool required)
+                                   , const std::string &prefix)
 {
-    if (required) {
-        od.add_options()
-            ((prefix + "root").c_str()
-             , po::value(&root)->required()
-             , "Root directory.");
-    } else {
-        od.add_options()
-            ((prefix + "root").c_str()
-             , po::value(&root)->default_value(root)
-             , "Root directory.");
-    }
-
     od.add_options()
-        ((prefix + "enableDataset").c_str()
+        ((prefix + "dataset").c_str()
          , po::value(&enableDataset)->default_value(enableDataset)
          , "Handle tile datasets at this location.")
-        ((prefix + "enableBrowser").c_str()
+        ((prefix + "browser").c_str()
          , po::value(&enableBrowser)->default_value(enableBrowser)
          , "Enable built-in browser at this location.")
         ((prefix + "vts.builtinBrowserUrl").c_str()
@@ -31,4 +18,11 @@ void LocationConfig::configuration(po::options_description &od
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");
+}
+
+void LocationConfig::dump(std::ostream &os, const std::string &prefix) const
+{
+    os << prefix << "dataset = " << enableDataset << "\n"
+       << prefix << "browser = " << enableBrowser << "\n"
+        ;
 }

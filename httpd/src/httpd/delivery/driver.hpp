@@ -1,16 +1,18 @@
-#ifndef libvadstena_http_driver_hpp_included_
-#define libvadstena_http_driver_hpp_included_
+#ifndef httpd_delivery_driver_hpp_included_
+#define httpd_delivery_driver_hpp_included_
 
 #include "vts-libs/storage/resources.hpp"
 #include "vts-libs/storage/streams.hpp"
 #include "vts-libs/storage/support.hpp"
 
+#include "utility/raise.hpp"
+
 #include "./vadstena-http.h"
 
 #include "../sink.hpp"
+#include "../config.hpp"
 
-#include "./lock.hpp"
-#include "./variables.hpp"
+#include "../sink.hpp"
 
 namespace vs = vadstena::storage;
 
@@ -52,12 +54,34 @@ public:
     virtual vs::Resources resources() const = 0;
     virtual bool externallyChanged() const = 0;
 
-    virtual void handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables) = 0;
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config) = 0;
 
     /** Open driver for hot content is never cached.
      */
     virtual bool hotContent() const { return false; }
+
+    Sink::FileInfo fileinfo(const vs::FileStat &fileStat, FileClass fc);
+    Sink::FileInfo fileinfo(const vs::FileStat &fileStat
+                            , const boost::optional<long> &maxAge
+                            = boost::none);
 };
 
-#endif // libvadstena_http_driver_hpp_included_
+// inlines
+
+inline Sink::FileInfo
+DriverWrapper::fileinfo(const vs::FileStat &fileStat, FileClass fc)
+{
+    return Sink::FileInfo(fileStat.contentType, fileStat.lastModified)
+        .setFileClass(fc);
+}
+
+inline Sink::FileInfo
+DriverWrapper::fileinfo(const vs::FileStat &fileStat
+                        , const boost::optional<long> &maxAge)
+{
+    return Sink::FileInfo(fileStat.contentType, fileStat.lastModified
+                          , maxAge);
+}
+
+#endif // httpd_delivery_driver_hpp_included_

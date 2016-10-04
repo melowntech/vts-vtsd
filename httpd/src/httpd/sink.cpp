@@ -38,15 +38,6 @@ Sink::FileInfo update(const Sink::FileInfo &inStat
     return stat;
 }
 
-const std::vector<unsigned char> emptyImage([]() -> std::vector<unsigned char>
-{
-    cv::Mat dot(4, 4, CV_8U, cv::Scalar(0));
-    std::vector<unsigned char> buf;
-    cv::imencode(".png", dot, buf
-                 , { cv::IMWRITE_PNG_COMPRESSION, 9 });
-    return buf;
-}());
-
 class IStreamDataSource : public http::ServerSink::DataSource {
 public:
     IStreamDataSource(const vs::IStream::pointer &stream
@@ -91,22 +82,12 @@ void Sink::content(const vs::IStream::pointer &stream
                    , FileClass fileClass)
 {
     sink_->content(std::make_shared<IStreamDataSource>
-                   (stream, fileClass, fileClassSettings_));
+                   (stream, fileClass, &fileClassSettings_));
 }
 
 void Sink::error(const std::exception_ptr &exc)
 {
-    try {
-        std::rethrow_exception(exc);
-    } catch (const EmptyImage &e) {
-        // special "error" -> send "empty" image
-        content(emptyImage.data(), emptyImage.size()
-                , Sink::FileInfo("image/png")
-                .setFileClass(FileClass::data)
-                , false);
-    } catch (...) {
-        sink_->error(std::current_exception());
-    }
+    sink_->error(exc);
 }
 
 Sink::FileInfo& Sink::FileInfo::setFileClass(FileClass fc)
@@ -123,5 +104,5 @@ Sink::FileInfo& Sink::FileInfo::setMaxAge(const boost::optional<long> &ma)
 
 Sink::FileInfo Sink::update(const FileInfo &stat) const
 {
-    return ::update(stat, fileClassSettings_);
+    return ::update(stat, &fileClassSettings_);
 }

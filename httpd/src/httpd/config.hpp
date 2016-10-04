@@ -11,8 +11,9 @@
 namespace vs = vadstena::storage;
 
 struct LocationConfig {
+    typedef std::vector<LocationConfig> list;
+
     std::string location;
-    boost::filesystem::path root;
     bool enableDataset;
     bool enableBrowser;
     vs::SupportFile::Vars vars;
@@ -23,9 +24,9 @@ struct LocationConfig {
     {}
 
     void configuration(boost::program_options::options_description &od
-                       , const std::string &prefix = ""
-                       , bool required = false);
+                       , const std::string &prefix = "");
 
+    void dump(std::ostream &os, const std::string &prefix = "") const;
 };
 
 #endif // httpd_config_hpp_included_

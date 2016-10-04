@@ -54,8 +54,9 @@ public:
         http::Header::list headers;
     };
 
-    Sink(const http::ServerSink::pointer &sink)
-        : sink_(sink), fileClassSettings_() {}
+    Sink(const http::ServerSink::pointer &sink
+         , const FileClassSettings &fileClassSettings)
+        : sink_(sink), fileClassSettings_(fileClassSettings) {}
 
     /** Sends content to client.
      * \param data data top send
@@ -119,11 +120,6 @@ public:
         sink_->setAborter(ac);
     }
 
-    /** Assigns file-class-related stuff to be used when sending data to the
-     *  client.
-     */
-    void assignFileClassSettings(const FileClassSettings &fileClasssettings);
-
 private:
     /** Sends given error to the client.
      */
@@ -133,7 +129,7 @@ private:
 
     http::ServerSink::pointer sink_;
 
-    const FileClassSettings *fileClassSettings_;
+    const FileClassSettings &fileClassSettings_;
 };
 
 // inlines
@@ -159,12 +155,6 @@ inline void Sink::content(const void *data, std::size_t size
                           , const FileInfo &stat, bool needCopy)
 {
     sink_->content(data, size, update(stat), needCopy, &stat.headers);
-}
-
-inline void
-Sink::assignFileClassSettings(const FileClassSettings &fileClassSettings)
-{
-    fileClassSettings_ = &fileClassSettings;
 }
 
 #endif // mapproxy_sink_hpp_included_

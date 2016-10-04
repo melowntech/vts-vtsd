@@ -37,7 +37,7 @@ struct VtsFileInfo : public FileInfo {
 
     const vr::DataFile *registry;
 
-    VtsFileInfo(const std::string &path, int flags
+    VtsFileInfo(const std::string &path, const LocationConfig &config
                 , int extraFlags = ExtraFlags::none);
 };
 
@@ -55,7 +55,8 @@ namespace constants {
     }
 }
 
-VtsFileInfo::VtsFileInfo(const std::string &p, int flags, int extraFlags)
+VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
+                         , int extraFlags)
     : FileInfo(p), raw(false), subTileFile(0), registry()
 {
     if (vts::fromFilename(tileId, tileFile, subTileFile, path, 0, &raw)) {
@@ -79,7 +80,7 @@ VtsFileInfo::VtsFileInfo(const std::string &p, int flags, int extraFlags)
         return;
     }
 
-    if (flags & TILESET_OPEN_DISABLE_BROWSER) {
+    if (!config.enableBrowser) {
         LOG(debug) << "Browser disabled, skipping browser files.";
     } else {
         LOG(debug) << "Browser enabled, checking browser files.";
@@ -199,8 +200,8 @@ public:
         return delivery_->externallyChanged();
     }
 
-    virtual void handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables);
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config);
 
 private:
     vts::Delivery::pointer delivery_;
@@ -260,13 +261,12 @@ Handle::pointer tileFileStream(const VtsFileInfo &info
 }
 #endif
 
-void VtsTileSet::handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables)
+void VtsTileSet::handle(Sink sink, const std::string &path
+                        , const LocationConfig &config)
 {
     (void) sink;
     (void) path;
-    (void) flags;
-    (void) variables;
+    (void) config;
     throw InternalError("Not implemented yet");
 }
 
@@ -355,8 +355,9 @@ public:
         return storage_.externallyChanged();
     }
 
-    virtual void handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables);
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config);
+
 #if 0
     virtual std::unique_ptr<Handle>
     openFile(LockGuard::OptionalMutex&, const std::string &path, int flags
@@ -425,13 +426,12 @@ private:
     MapConfig mapConfig_;
 };
 
-void VtsStorage::handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables)
+void VtsStorage::handle(Sink sink, const std::string &path
+                        , const LocationConfig &config)
 {
     (void) sink;
     (void) path;
-    (void) flags;
-    (void) variables;
+    (void) config;
     throw InternalError("Not implemented yet");
 }
 
@@ -450,49 +450,8 @@ public:
         return storageView_.externallyChanged();
     }
 
-    virtual void handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables);
-
-#if 0
-    virtual std::unique_ptr<Handle>
-    openFile(LockGuard::OptionalMutex&, const std::string &path, int flags
-             , const tileset_Variables::Wrapper &variables)
-    {
-        VtsFileInfo info(path, flags);
-
-        if (path == constants::Config) {
-            return Handle::pointer
-                (new GeneratedFileHandle
-                 (mapConfig_.data, mapConfig_.stat, TILESET_FILETYPE_HOT));
-        }
-
-        if (path == constants::Dirs) {
-            return Handle::pointer
-                (new GeneratedFileHandle
-                 (mapConfig_.dirsData, mapConfig_.dirsStat
-                  , TILESET_FILETYPE_HOT));
-        }
-
-        // unknonw file, let's test other members
-        if (info.registry) {
-            // it's registry file!
-            return Handle::pointer
-                (new StreamHandle(vs::fileIStream(info.registry->contentType
-                                                  , info.registry->path)
-                                  , TILESET_FILETYPE_BROWSER));
-        }
-
-        if (info.support) {
-            return Handle::pointer
-                (new BrowserFileHandle(info.support->second, variables));
-        }
-
-        // unknown file
-        LOGTHROW(err1, vs::NoSuchFile)
-            << "Unknown file to open: \"" << info.path << "\".";
-        throw; // shut up, compiler
-    }
-#endif
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config);
 
     /** We consider storage view a hot-content. I.e. it is not cached.
      */
@@ -504,14 +463,43 @@ private:
     MapConfig mapConfig_;
 };
 
-void VtsStorageView::handle(const Sink &sink, const std::string &path
-                            , int flags, const Variables::Wrapper &variables)
+void VtsStorageView::handle(Sink sink, const std::string &path
+                            , const LocationConfig &config)
 {
-    (void) sink;
-    (void) path;
-    (void) flags;
-    (void) variables;
-    throw InternalError("Not implemented yet");
+    VtsFileInfo info(path, config);
+
+    if (path == constants::Config) {
+        sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
+        return;
+    }
+
+    if (path == constants::Dirs) {
+        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
+        return;
+    }
+
+    // unknonw file, let's test other members
+    if (info.registry) {
+        // it's registry file!
+        sink.content(vs::fileIStream(info.registry->contentType
+                                     , info.registry->path)
+                     , FileClass::registry);
+    }
+
+#if 0
+
+    if (info.support) {
+        return Handle::pointer
+            (new BrowserFileHandle(info.support->second, variables));
+    }
+
+    // unknown file
+    LOGTHROW(err1, vs::NoSuchFile)
+        << "Unknown file to open: \"" << info.path << "\".";
+    throw; // shut up, compiler
+#endif
+
+    sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 
 } // namespace

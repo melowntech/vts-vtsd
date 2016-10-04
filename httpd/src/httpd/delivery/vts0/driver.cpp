@@ -71,8 +71,9 @@ public:
         return driver_->externallyChanged();
     }
 
-    virtual void handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables);
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config);
+
 #if 0
     virtual std::unique_ptr<Handle>
     openFile(LockGuard::OptionalMutex &mutex, const std::string &path
@@ -83,13 +84,12 @@ private:
     vts0::Driver::pointer driver_;
 };
 
-void Vts0Driver::handle(const Sink &sink, const std::string &path
-                        , int flags, const Variables::Wrapper &variables)
+void Vts0Driver::handle(Sink sink, const std::string &path
+                        , const LocationConfig &config)
 {
     (void) sink;
     (void) path;
-    (void) flags;
-    (void) variables;
+    (void) config;
     throw InternalError("Not implemented yet");
 }
 
