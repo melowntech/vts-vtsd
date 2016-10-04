@@ -13,9 +13,11 @@
 #include "http/contentgenerator.hpp"
 
 #include "vts-libs/storage/streams.hpp"
+#include "vts-libs/storage/support.hpp"
 
 #include "./fileclass.hpp"
 #include "./error.hpp"
+#include "./config.hpp"
 
 namespace vs = vadstena::storage;
 
@@ -55,14 +57,19 @@ public:
     };
 
     Sink(const http::ServerSink::pointer &sink
-         , const FileClassSettings &fileClassSettings)
-        : sink_(sink), fileClassSettings_(fileClassSettings) {}
+         , const LocationConfig &locationConfig)
+        : sink_(sink), locationConfig_(locationConfig) {}
 
     /** Sends content to client.
      * \param data data top send
      * \param stat file info (size is ignored)
      */
     void content(const std::string &data, const FileInfo &stat);
+
+    /** Sends support file to client.
+     * \param data data to send
+     */
+    void content(const vs::SupportFile &data);
 
     /** Sends content to client.
      * \param data data top send
@@ -82,10 +89,19 @@ public:
 
     /** Sends content to client.
      * \param stream stream to send
-     * \param file class
+     * \param fileClass file class
      */
     void content(const vs::IStream::pointer &stream
                  , FileClass fileClass);
+
+    /** Sends content to client.
+     * \param stream stream to send
+     * \param fileClass file class
+     * \param offset start offset in file
+     * \param size size of content
+     */
+    void content(const vs::IStream::pointer &stream
+                 , FileClass fileClass, std::size_t offset, std::size_t size);
 
     /** Tell client to look somewhere else.
      */
@@ -129,7 +145,7 @@ private:
 
     http::ServerSink::pointer sink_;
 
-    const FileClassSettings &fileClassSettings_;
+    const LocationConfig &locationConfig_;
 };
 
 // inlines

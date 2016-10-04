@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include "vts-libs/vts/support.hpp"
 #include "vts-libs/vts.hpp"
 #include "vts-libs/vts/tileop.hpp"
@@ -48,10 +50,11 @@ namespace constants {
     const std::string Self(".");
     const std::string Index("index.html");
 
-    // tileset inrernals
+    // tileset internals
     namespace tileset {
         const std::string Config("tileset.conf");
         const std::string Index("tileset.index");
+        const std::string Registry("tileset.registry");
     }
 }
 
@@ -115,6 +118,12 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
         if (constants::tileset::Index == path) {
             type = Type::file;
             file = vs::File::tileIndex;
+            return;
+        }
+
+        if (constants::tileset::Registry == path) {
+            type = Type::file;
+            file = vs::File::registry;
             return;
         }
     }
@@ -208,11 +217,11 @@ private:
 
     MapConfig mapConfig_;
     Definition definition_;
+    std::mutex mutex_;
 };
 
-#if 0
-Handle::pointer tileFileStream(const VtsFileInfo &info
-                               , const vs::IStream::pointer &is)
+void tileFileStream(Sink &sink, const VtsFileInfo &info
+                    , const vs::IStream::pointer &is)
 {
     switch (info.tileFile) {
     case vs::TileFile::mesh: {
@@ -220,9 +229,7 @@ Handle::pointer tileFileStream(const VtsFileInfo &info
         auto entry(vts::readMeshTable(*is, is->name())
                    [vts::Mesh::meshIndex()]);
 
-        return Handle::pointer
-            (new SubStreamHandle(is, TILESET_FILETYPE_TILE
-                                 , entry.start, entry.size));
+        return sink.content(is, FileClass::data, entry.start, entry.size);
     }
 
     case vs::TileFile::atlas: {
@@ -237,9 +244,7 @@ Handle::pointer tileFileStream(const VtsFileInfo &info
 
         const auto &entry(table[info.subTileFile]);
 
-        return Handle::pointer
-            (new SubStreamHandle(is, TILESET_FILETYPE_TILE
-                                 , entry.start, entry.size));
+        return sink.content(is, FileClass::data, entry.start, entry.size);
     }
 
     case vs::TileFile::navtile: {
@@ -247,98 +252,85 @@ Handle::pointer tileFileStream(const VtsFileInfo &info
         auto entry(vts::NavTile::readTable(*is, is->name())
                    [vts::NavTile::imageIndex()]);
 
-        return Handle::pointer
-            (new SubStreamHandle(is, TILESET_FILETYPE_TILE
-                                 , entry.start, entry.size));
+        return sink.content(is, FileClass::data, entry.start, entry.size);
     }
 
     default: break;
     }
 
     // default handler
-    return std::unique_ptr<Handle>
-        (new StreamHandle(is, TILESET_FILETYPE_TILE));
+    return sink.content(is, FileClass::data);
 }
-#endif
 
 void VtsTileSet::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
 {
-    (void) sink;
-    (void) path;
-    (void) config;
-    throw InternalError("Not implemented yet");
-}
-
-#if 0
-Handle::pointer
-VtsTileSet::openFile(LockGuard::OptionalMutex &mutex, const std::string &path
-                     , int flags, const tileset_Variables::Wrapper &variables)
-{
     // we want internals
-    VtsFileInfo info(path, flags, ExtraFlags::enableTilesetInternals);
-
-    LockGuard guard(mutex);
+    VtsFileInfo info(path, config, ExtraFlags::enableTilesetInternals);
 
     switch (info.type) {
     case FileInfo::Type::definition:
-        return Handle::pointer
-            (new GeneratedFileHandle
-             (definition_.data, definition_.stat, TILESET_FILETYPE_FILE));
+        sink.content(definition_.data, fileinfo(definition_.stat, -1));
+        return;
 
     case FileInfo::Type::dirs:
-        // serve updated dirs config
-        return Handle::pointer
-            (new GeneratedFileHandle
-             (mapConfig_.dirsData, mapConfig_.dirsStat
-              , TILESET_FILETYPE_FILE));
+        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
+        return;
 
     case FileInfo::Type::file:
         if ((info.file == vs::File::config) && !info.raw) {
             // serve updated map config
-            return Handle::pointer
-                (new GeneratedFileHandle
-                 (mapConfig_.data, mapConfig_.stat, TILESET_FILETYPE_FILE));
+            sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
+            return;
         }
 
         // serve internal file
-        return Handle::pointer
-            (new StreamHandle
-             (delivery_->input(info.file), TILESET_FILETYPE_FILE));
+        {
+            std::unique_lock<std::mutex> guard(mutex_);
+            sink.content(delivery_->input(info.file), FileClass::data);
+            return;
+        }
 
     case FileInfo::Type::tileFile: {
-        auto is(delivery_->input(info.tileId, info.tileFile));
+        // get input stream (locked)
+        auto is([&]() -> vs::IStream::pointer
+        {
+            std::unique_lock<std::mutex> guard(mutex_);
+            return delivery_->input(info.tileId, info.tileFile);
+        }());
+
+        // raw data?
         if (info.raw) {
-            return Handle::pointer
-                (new StreamHandle(is, TILESET_FILETYPE_FILE));
+            return sink.content(is, FileClass::data);
         }
-        return tileFileStream(info, is);
+
+        // browser frendly
+        return tileFileStream(sink, info, is);
     }
 
     case FileInfo::Type::support:
-        return Handle::pointer
-            (new BrowserFileHandle(info.support->second, variables));
+        sink.content(info.support->second);
+        return;
 
     case FileInfo::Type::unknown:
         // unknown file, let's test other members
         if (info.registry) {
             // it's registry file!
-            return Handle::pointer
-                (new StreamHandle(vs::fileIStream(info.registry->contentType
-                                                  , info.registry->path)
-                                  , TILESET_FILETYPE_BROWSER));
+            sink.content(vs::fileIStream(info.registry->contentType
+                                         , info.registry->path)
+                         , FileClass::registry);
+            return;
         }
         break;
 
-        // nothing appropriate
-    default: break;
+    default:
+        // TODO: implement me
+        break;
     }
 
-    LOGTHROW(err1, vs::NoSuchFile)
-        << "Unknown file to open: \"" << info.path << "\".";
-    throw; // shut up, compiler
+    // wtf?
+    sink.error(utility::makeError<NotFound>("Unknown file."));
 }
-#endif
 
 class VtsStorage : public DriverWrapper
 {
@@ -358,68 +350,6 @@ public:
     virtual void handle(Sink sink, const std::string &path
                         , const LocationConfig &config);
 
-#if 0
-    virtual std::unique_ptr<Handle>
-    openFile(LockGuard::OptionalMutex&, const std::string &path, int flags
-             , const tileset_Variables::Wrapper &variables)
-    {
-        VtsFileInfo info(path, flags);
-
-        if (path == constants::Config) {
-            return Handle::pointer
-                (new GeneratedFileHandle
-                 (mapConfig_.data, mapConfig_.stat, TILESET_FILETYPE_FILE));
-        }
-
-        if (path == constants::Dirs) {
-            return Handle::pointer
-                (new GeneratedFileHandle
-                 (mapConfig_.dirsData, mapConfig_.dirsStat
-                  , TILESET_FILETYPE_FILE));
-        }
-
-        // unknonw file, let's test other members
-        if (info.registry) {
-            // it's registry file!
-            return Handle::pointer
-                (new StreamHandle(vs::fileIStream(info.registry->contentType
-                                                  , info.registry->path)
-                                  , TILESET_FILETYPE_BROWSER));
-        }
-
-        switch (info.type) {
-        case FileInfo::Type::support:
-            if (path == constants::Self) {
-                // enabled browser and asked to serve dir -> forced redirect
-                // inside
-                throw NoBody();
-            }
-            return Handle::pointer
-                (new BrowserFileHandle(info.support->second, variables));
-
-        case FileInfo::Type::unknown:
-            // unknonw file, let's test other members
-            if (info.registry) {
-                // it's registry file!
-                return Handle::pointer
-                    (new StreamHandle(vs::fileIStream
-                                      (info.registry->contentType
-                                       , info.registry->path)
-                                      , TILESET_FILETYPE_BROWSER));
-            }
-            break;
-
-        default:
-            break;
-        }
-
-        // unknown file
-        LOGTHROW(err1, vs::NoSuchFile)
-            << "Unknown file to open: \"" << info.path << "\".";
-        throw; // shut up, compiler
-    }
-#endif
-
 private:
     vts::Storage storage_;
 
@@ -429,10 +359,40 @@ private:
 void VtsStorage::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
 {
-    (void) sink;
-    (void) path;
-    (void) config;
-    throw InternalError("Not implemented yet");
+    VtsFileInfo info(path, config);
+
+    if (path == constants::Config) {
+        sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
+        return;
+    }
+
+    if (path == constants::Dirs) {
+        sink.content(mapConfig_.dirsData, fileinfo(mapConfig_.dirsStat, -1));
+        return;
+    }
+
+    // unknonw file, let's test other members
+    if (info.registry) {
+        // it's registry file!
+        sink.content(vs::fileIStream(info.registry->contentType
+                                     , info.registry->path)
+                     , FileClass::registry);
+        return;
+    }
+
+    if (info.support) {
+        if (path == constants::Self) {
+            // enabled browser and asked to serve dir
+            throw NoBody();
+        }
+
+        // support file
+        sink.content(info.support->second);
+        return;
+    }
+
+    // wtf?
+    sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 
 class VtsStorageView : public DriverWrapper
@@ -484,21 +444,16 @@ void VtsStorageView::handle(Sink sink, const std::string &path
         sink.content(vs::fileIStream(info.registry->contentType
                                      , info.registry->path)
                      , FileClass::registry);
+        return;
     }
-
-#if 0
 
     if (info.support) {
-        return Handle::pointer
-            (new BrowserFileHandle(info.support->second, variables));
+        // support file
+        sink.content(info.support->second);
+        return;
     }
 
-    // unknown file
-    LOGTHROW(err1, vs::NoSuchFile)
-        << "Unknown file to open: \"" << info.path << "\".";
-    throw; // shut up, compiler
-#endif
-
+    // wtf?
     sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 

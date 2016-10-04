@@ -65,6 +65,7 @@ public:
     Sink::FileInfo fileinfo(const vs::FileStat &fileStat
                             , const boost::optional<long> &maxAge
                             = boost::none);
+    Sink::FileInfo fileinfo(const vs::SupportFile &file, FileClass fc);
 };
 
 // inlines

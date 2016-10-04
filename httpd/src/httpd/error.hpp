@@ -40,6 +40,7 @@ struct EmptyImage : Error {
     EmptyImage(const std::string &message) : Error(message) {}
 };
 
+typedef http::Forbidden Forbidden;
 typedef http::NotFound NotFound;
 typedef http::ServiceUnavailable Unavailable;
 typedef http::InternalServerError InternalError;

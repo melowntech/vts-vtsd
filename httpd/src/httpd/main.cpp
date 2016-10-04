@@ -276,8 +276,6 @@ void Daemon::handle(const fs::path &filePath
                     , const http::ServerSink::pointer &sink
                     , const LocationConfig &location)
 {
-    LOG(info2) << "Path: " << request.uri << ", file path: " << filePath;
-
     if (location.enableDataset) {
         handleDataset(filePath, request, sink, location);
     } else {
@@ -314,8 +312,7 @@ void Daemon::handleDataset(const fs::path &filePath
 
     try {
         deliveryCache_.get(parent.string(), 0)
-            ->handle(Sink(sink, location.fileClassSettings)
-                     , file.string(), location);
+            ->handle(Sink(sink, location), file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {
             sink->error(utility::makeError<NotFound>("No such dataset"));
@@ -326,7 +323,7 @@ void Daemon::handleDataset(const fs::path &filePath
         if (isDirectory) {
             if (file != ".") {
                 // directory redirect
-                sink->seeOther(request.uri + "/");
+                sink->seeOther(file.string() + "/");
                 return;
             }
 
@@ -335,6 +332,8 @@ void Daemon::handleDataset(const fs::path &filePath
                 sendListing(parent, sink);
                 return;
             }
+            // browser not enabled -> forbidden
+            sink->error(utility::makeError<Forbidden>("Unbrowsable"));
         }
 
         // not found
@@ -346,8 +345,10 @@ void Daemon::handleDataset(const fs::path &filePath
             sendListing(parent, sink);
             return;
         }
-        sink->error(utility::makeError<NotFound>("No such dataset"));
+        sink->error(utility::makeError<Forbidden>("Unbrowsable"));
     }
+
+    (void) request;
 }
 
 void Daemon::handlePlain(const fs::path &filePath
@@ -365,7 +366,7 @@ void Daemon::handlePlain(const fs::path &filePath
 void Daemon::generate_impl(const http::Request &request
                            , const http::ServerSink::pointer &sink)
 {
-    const auto filePath(boost::filesystem::path(root_) / request.uri);
+    const auto filePath(boost::filesystem::path(root_) / request.path);
 
     for (const auto location : locations_) {
         if (ba::starts_with(request.uri, location.location)) {
