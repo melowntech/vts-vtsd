@@ -1,4 +1,4 @@
-Source: ctt-vts-httpd
+Source: ctt-vts-vtsd
 Section: non-free/citationtech
 Priority: extra
 Maintainer: Vaclav Blazek <vaclav.blazek@citationtech.net>
@@ -14,12 +14,12 @@ Build-Depends: debhelper (>= 7.0.50~), libboost-all-dev (>= 1.49)
 Standards-Version: 3.8.4
 Homepage: https://www.melown.com/maps
 
-Package: ctt-vts-httpd
+Package: ctt-vts-vtsd
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, ctt-vts-registry (>= 1.0)
 Description: VTS HTTP backend server
 
-Package: ctt-vts-httpd-dbg
+Package: ctt-vts-vtsd-dbg
 Architecture: any
-Depends: ${misc:Depends}, ctt-vts-httpd (= ${binary:Version})
-Description: Debug Symbols for ctt-vts-httpd
+Depends: ${misc:Depends}, ctt-vts-vtsd (= ${binary:Version})
+Description: Debug Symbols for ctt-vts-vtsd

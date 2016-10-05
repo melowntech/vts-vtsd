@@ -1,4 +1,4 @@
-ctt-vts-httpd (0.1) citationtech-wheezy; urgency=low
+ctt-vts-vtsd (0.1) citationtech-wheezy; urgency=low
 
   * Initial build.
 

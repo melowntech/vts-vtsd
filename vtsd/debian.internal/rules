@@ -4,18 +4,18 @@
 PACKAGE_VERSION=$(shell dpkg-parsechangelog | grep ^Version: | cut -d' ' -f2)
 
 # list of packages to build
-PACKAGES=HTTPD
+PACKAGES=VTSD
 
 # package names
-DEB_PACKAGE_HTTPD=ctt-vts-httpd
-DEB_PACKAGE_DEBUG=ctt-vts-httpd-dbg
+DEB_PACKAGE_VTSD=ctt-vts-vtsd
+DEB_PACKAGE_DEBUG=ctt-vts-vtsd-dbg
 
 PREFIX=/opt/vts
 
 # use this build directory
 DEB_BUILDDIR=obj-$(DEB_BUILD_GNU_TYPE)
 # install components
-INSTALL_COMPONENTS_HTTPD=main
+INSTALL_COMPONENTS_VTSD=main
 
 # add settings here
 CMAKE_FLAGS =  \
