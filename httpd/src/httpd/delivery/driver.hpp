@@ -16,7 +16,13 @@ namespace vs = vadstena::storage;
 
 /** Can be thrown by handler to force redirect.
  */
-struct NoBody {};
+struct ListContent {
+    Sink::Listing listingBootstrap;
+
+    ListContent(Sink::Listing listingBootstrap = Sink::Listing())
+        : listingBootstrap(listingBootstrap)
+    {}
+};
 
 struct FileInfo {
     enum class Type {

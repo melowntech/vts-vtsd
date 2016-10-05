@@ -278,9 +278,10 @@ int Daemon::run()
     return EXIT_SUCCESS;
 }
 
-void sendListing(const fs::path &path, const http::ServerSink::pointer &sink)
+void sendListing(const fs::path &path, const http::ServerSink::pointer &sink
+                 , const Sink::Listing &bootstrap = Sink::Listing())
 {
-    http::ServerSink::Listing listing;
+    http::ServerSink::Listing listing(bootstrap);
 
     for (fs::directory_iterator ipath(path), epath; ipath != epath; ++ipath) {
         const auto &entry(*ipath);
@@ -345,10 +346,10 @@ void Daemon::handle(const fs::path &filePath
         // not found
         sink->error(utility::makeError<NotFound>("No such dataset"));
         return;
-    } catch (NoBody) {
+    } catch (const ListContent &lc) {
         if (location.enableListing) {
             // directory and we have enabled browser -> directory listing
-            sendListing(parent, sink);
+            sendListing(parent, sink, lc.listingBootstrap);
             return;
         }
         sink->error(utility::makeError<Forbidden>("Unbrowsable"));

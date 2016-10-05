@@ -378,7 +378,7 @@ void VtsStorage::handle(Sink sink, const std::string &path
     if (info.support) {
         if (path == constants::Self) {
             // enabled browser and asked to serve dir
-            throw NoBody();
+            throw ListContent({ { "index.html" } });
         }
 
         // support file
