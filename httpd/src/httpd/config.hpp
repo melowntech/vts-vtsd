@@ -18,6 +18,7 @@ struct LocationConfig {
     bool enableListing;
     vs::SupportFile::Vars vars;
     FileClassSettings fileClassSettings;
+    boost::filesystem::path root;
     boost::filesystem::path alias;
 
     LocationConfig()
@@ -26,6 +27,9 @@ struct LocationConfig {
 
     void configuration(boost::program_options::options_description &od
                        , const std::string &prefix = "");
+
+    void configure(const boost::program_options::variables_map &vars
+                   , const std::string &prefix = "");
 
     void dump(std::ostream &os, const std::string &prefix = "") const;
 };

@@ -74,6 +74,8 @@ private:
 
     void configure(const po::variables_map &vars);
 
+    std::vector<std::string> listHelps() const;
+
     bool help(std::ostream &out, const std::string &what) const;
 
     bool prePersonaSwitch();
@@ -96,7 +98,6 @@ private:
     utility::TcpEndpoint httpListen_;
     unsigned int httpThreadCount_;
 
-    fs::path root_;
     LocationConfig defaultConfig_;
     LocationConfig::list locations_;
 
@@ -118,8 +119,6 @@ void Daemon::configuration(po::options_description &cmdline
         ("http.threadCount", po::value(&httpThreadCount_)
          ->default_value(httpThreadCount_)->required()
          , "Number of server HTTP threads.")
-        ("http.root", po::value(&root_)->required()
-         , "Data root.")
         ;
 
     (void) cmdline;
@@ -175,17 +174,12 @@ Daemon::configure(const po::variables_map &vars
 
 void Daemon::configure(const po::variables_map &vars)
 {
-    vr::registryConfigure(vars);
-
-    if (std::find_if
-        (locations_.begin(), locations_.end()
-         , [&](const LocationConfig &l) { return l.location == "/"; })
-        == locations_.end())
-    {
-        // inject default configuration to /
-        locations_.push_back(defaultConfig_);
-        locations_.back().location = "/";
+    if (locations_.empty()) {
+        LOGTHROW(err3, std::runtime_error)
+            << "Missing location configuration. Please, provide at least one.";
     }
+
+    vr::registryConfigure(vars);
 
     // sort locations in reverse
     std::sort(locations_.begin(), locations_.end()
@@ -207,6 +201,11 @@ void Daemon::configure(const po::variables_map &vars)
             })
         ;
     (void) vars;
+}
+
+std::vector<std::string> Daemon::listHelps() const
+{
+    return { "location" };
 }
 
 bool Daemon::help(std::ostream &out, const std::string &what) const
@@ -362,9 +361,9 @@ void Daemon::generate_impl(const http::Request &request
 {
     for (const auto location : locations_) {
         if (ba::starts_with(request.path, location.location)) {
-            if (location.alias.empty()) {
-                // no alias, just append with root
-                const auto filePath(root_ / request.path);
+            if (!location.root.empty()) {
+                // use root
+                const auto filePath(location.root / request.path);
                 return handle(filePath, request, sink, location);
             }
 
