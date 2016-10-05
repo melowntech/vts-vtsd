@@ -12,15 +12,15 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "listing").c_str()
          , po::value(&enableListing)->default_value(enableListing)
          , "Enabled directory listing.")
-        ((prefix + "vts.builtinBrowserUrl").c_str()
-         , po::value(&vars["VTS_BUILTIN_BROWSER_URL"])
-         , "URL of built in browser.")
         ((prefix + "root").c_str()
          , po::value(&root)
          , "Root directory (conflicts with alias).")
         ((prefix + "alias").c_str()
          , po::value(&alias)
          , "Alias this location to another directory (conflicts with root).")
+        ((prefix + "vts.builtinBrowserUrl").c_str()
+         , po::value(&vars["VTS_BUILTIN_BROWSER_URL"])
+         , "URL of built in browser.")
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");

@@ -103,7 +103,7 @@ private:
 
     boost::optional<http::Http> http_;
 
-    DeliveryCache deliveryCache_;
+    boost::optional<DeliveryCache> deliveryCache_;
 };
 
 void Daemon::configuration(po::options_description &cmdline
@@ -219,6 +219,15 @@ bool Daemon::help(std::ostream &out, const std::string &what) const
         return true;
     }
 
+    if (what == "location") {
+        po::options_description po("per-location configuration");
+        LocationConfig tmp(defaultConfig_);
+        tmp.configuration(po, "location</path>.");
+        out << std::boolalpha << po;
+
+        return true;
+    }
+
     return false;
 }
 
@@ -231,6 +240,7 @@ service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
+    deliveryCache_ = boost::in_place();
     http_ = boost::in_place();
 
     http_->listen(httpListen_, std::ref(*this));
@@ -282,7 +292,7 @@ void sendListing(const fs::path &path, const http::ServerSink::pointer &sink)
 bool Daemon::tryOpen(const fs::path &filePath)
 {
     try {
-        deliveryCache_.get(filePath.string());
+        deliveryCache_->get(filePath.string());
     } catch (...) {
         // could not open dataset
         return false;
@@ -300,7 +310,7 @@ void Daemon::handle(const fs::path &filePath
     auto file(filePath.filename());
 
     try {
-        deliveryCache_.get(parent.string())
+        deliveryCache_->get(parent.string())
             ->handle(Sink(sink, location), file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {
