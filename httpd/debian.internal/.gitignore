@@ -1,0 +1,6 @@
+*debhelper*
+*.substvars
+ctt-vts-httpd
+ctt-vts-httpd-dbg
+*.debhelper
+files

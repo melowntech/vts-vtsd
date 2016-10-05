@@ -22,16 +22,16 @@ set(httpd_SOURCES
   main.cpp
   )
 
-add_executable(vtshttpd ${httpd_SOURCES} ${httpd_BROWSER_SOURCES})
-target_link_libraries(vtshttpd ${MODULE_LIBRARIES})
-buildsys_target_compile_definitions(vtshttpd ${MODULE_DEFINITIONS})
-buildsys_binary(vtshttpd)
-set_target_version(vtshttpd ${httpd_VERSION})
+add_executable(vtsd ${httpd_SOURCES} ${httpd_BROWSER_SOURCES})
+target_link_libraries(vtsd ${MODULE_LIBRARIES})
+buildsys_target_compile_definitions(vtsd ${MODULE_DEFINITIONS})
+buildsys_binary(vtsd)
+set_target_version(vtsd ${httpd_VERSION})
 
 # ------------------------------------------------------------------------
 # --- installation
 # ------------------------------------------------------------------------
 
 # binaries
-install(TARGETS vtshttpd RUNTIME DESTINATION bin
+install(TARGETS vtsd RUNTIME DESTINATION bin
   COMPONENT main)
