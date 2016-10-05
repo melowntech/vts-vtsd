@@ -24,9 +24,6 @@ DeliveryCache::DeliveryCache()
         = std::numeric_limits<decltype(cleanupLimit_.memory)>::max();
 
     LOG(info3) << "Cleanup limits: " << cleanupLimit_ << ".";
-
-    dbglog::set_mask(dbglog::level::none);
-    dbglog::log_console(false);
 }
 
 DriverWrapper::pointer DeliveryCache::openDriver

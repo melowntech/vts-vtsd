@@ -36,7 +36,7 @@ class Daemon
 {
 public:
     Daemon()
-        : service::Service("vtshttpd", BUILD_TARGET_VERSION
+        : service::Service("vtsd", BUILD_TARGET_VERSION
                            , service::ENABLE_CONFIG_UNRECOGNIZED_OPTIONS
                            | service::ENABLE_UNRECOGNIZED_OPTIONS)
         , httpListen_(3060)
@@ -174,12 +174,16 @@ Daemon::configure(const po::variables_map &vars
 
 void Daemon::configure(const po::variables_map &vars)
 {
+    vr::registryConfigure(vars);
+
     if (locations_.empty()) {
         LOGTHROW(err3, std::runtime_error)
             << "Missing location configuration. Please, provide at least one.";
     }
 
-    vr::registryConfigure(vars);
+    for (auto &location : locations_) {
+        location.configure(vars, "location<" + location.location + ">.");
+    }
 
     // sort locations in reverse
     std::sort(locations_.begin(), locations_.end()
@@ -212,7 +216,7 @@ bool Daemon::help(std::ostream &out, const std::string &what) const
 {
     if (what.empty()) {
         // program help
-        out << ("vtshttpd daemon\n"
+        out << ("vtsd daemon\n"
                 "\n"
                 );
 
@@ -223,7 +227,7 @@ bool Daemon::help(std::ostream &out, const std::string &what) const
         po::options_description po("per-location configuration");
         LocationConfig tmp(defaultConfig_);
         tmp.configuration(po, "location</path>.");
-        out << std::boolalpha << po;
+        out << po;
 
         return true;
     }
@@ -241,8 +245,8 @@ service::Service::Cleanup Daemon::start()
     auto guard(std::make_shared<Stopper>(*this));
 
     deliveryCache_ = boost::in_place();
-    http_ = boost::in_place();
 
+    http_ = boost::in_place();
     http_->listen(httpListen_, std::ref(*this));
     http_->startServer(httpThreadCount_);
 
@@ -251,9 +255,9 @@ service::Service::Cleanup Daemon::start()
 
 void Daemon::cleanup()
 {
-    // TODO: stop machinery
     // destroy, in reverse order
     http_ = boost::none;
+    deliveryCache_ = boost::none;
 }
 
 void Daemon::stat(std::ostream &os)
@@ -297,7 +301,7 @@ bool Daemon::tryOpen(const fs::path &filePath)
         // could not open dataset
         return false;
     }
-    // dataset openend -> fine
+    // dataset opened -> fine
     return true;
 }
 
