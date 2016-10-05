@@ -228,7 +228,8 @@ void tileFileStream(Sink &sink, const VtsFileInfo &info
         auto entry(vts::readMeshTable(*is, is->name())
                    [vts::Mesh::meshIndex()]);
 
-        return sink.content(is, FileClass::data, entry.start, entry.size);
+        return sink.content(is, FileClass::data, entry.start, entry.size
+                            , vs::gzipped(is, entry.start));
     }
 
     case vs::TileFile::atlas: {

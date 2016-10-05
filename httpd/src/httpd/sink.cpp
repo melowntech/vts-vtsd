@@ -81,7 +81,8 @@ public:
     SubIStreamDataSource(const vs::IStream::pointer &stream
                          , FileClass fileClass
                          , const FileClassSettings *fileClassSettings
-                         , std::size_t offset, std::size_t size)
+                         , std::size_t offset, std::size_t size
+                         , bool gzipped)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
                              , maxAge(fileClass, fileClassSettings)))
@@ -95,15 +96,15 @@ public:
 
         // do not fail on eof
         stream->get().exceptions(std::ios::badbit);
+
+        if (gzipped) {
+            headers_.emplace_back("Content-Encoding", "gzip");
+        }
     }
 
-    virtual http::SinkBase::FileInfo stat() const {
-        return fs_;
-    }
+    virtual http::SinkBase::FileInfo stat() const { return fs_; }
 
-    virtual std::size_t read(char *buf, std::size_t size
-                             , std::size_t off)
-    {
+    virtual std::size_t read(char *buf, std::size_t size, std::size_t off) {
         // fix-ups
         auto offset(off + offset_);
         if (offset > end_) { return 0; }
@@ -139,11 +140,12 @@ void Sink::content(const vs::IStream::pointer &stream
 }
 
 void Sink::content(const vs::IStream::pointer &stream
-                   , FileClass fileClass, std::size_t offset, std::size_t size)
+                   , FileClass fileClass, std::size_t offset, std::size_t size
+                   , bool gzipped)
 {
     sink_->content(std::make_shared<SubIStreamDataSource>
                    (stream, fileClass, &locationConfig_.fileClassSettings
-                    , offset, size));
+                    , offset, size, gzipped));
 }
 
 void Sink::content(const vs::SupportFile &data)

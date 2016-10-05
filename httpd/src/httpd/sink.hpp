@@ -99,9 +99,11 @@ public:
      * \param fileClass file class
      * \param offset start offset in file
      * \param size size of content
+     * \param gzipped adds Content-Encoding: gzip
      */
     void content(const vs::IStream::pointer &stream
-                 , FileClass fileClass, std::size_t offset, std::size_t size);
+                 , FileClass fileClass, std::size_t offset, std::size_t size
+                 , bool gzipped = false);
 
     /** Tell client to look somewhere else.
      */
