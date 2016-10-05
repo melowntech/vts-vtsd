@@ -117,9 +117,8 @@ void Vts0Driver::handle(Sink sink, const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openVts0(const std::string &path, int flags)
+DriverWrapper::pointer openVts0(const std::string &path)
 {
-    (void) flags;
     return std::make_shared<Vts0Driver>
         (std::make_shared<vts0::TilarDriver>
          (path, vts0::OpenMode::readOnly));

@@ -3,6 +3,6 @@
 
 #include "../driver.hpp"
 
-DriverWrapper::pointer openTileSet(const std::string &path, int flags);
+DriverWrapper::pointer openTileSet(const std::string &path);
 
 #endif // libvadstena_http_tileset_driver_hpp_included_

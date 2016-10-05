@@ -449,7 +449,7 @@ void VtsStorageView::handle(Sink sink, const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openVts(const std::string &path, int)
+DriverWrapper::pointer openVts(const std::string &path)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:

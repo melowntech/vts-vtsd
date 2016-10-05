@@ -17,7 +17,7 @@ class DeliveryCache : boost::noncopyable {
 public:
     DeliveryCache();
 
-    DriverWrapper::pointer get(const std::string &path, int flags);
+    DriverWrapper::pointer get(const std::string &path);
 
     void cleanup();
 
@@ -26,7 +26,7 @@ public:
     void flush(std::unique_lock<std::mutex>&);
 
 private:
-    DriverWrapper::pointer openDriver(const std::string &path, int flags)
+    DriverWrapper::pointer openDriver(const std::string &path)
         const;
 
     std::mutex mutex_;

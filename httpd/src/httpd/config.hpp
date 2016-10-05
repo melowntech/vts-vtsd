@@ -14,13 +14,13 @@ struct LocationConfig {
     typedef std::vector<LocationConfig> list;
 
     std::string location;
-    bool enableDataset;
     bool enableBrowser;
+    bool enableListing;
     vs::SupportFile::Vars vars;
     FileClassSettings fileClassSettings;
 
     LocationConfig()
-        : enableDataset(true), enableBrowser(false)
+        : enableBrowser(false), enableListing(false)
     {}
 
     void configuration(boost::program_options::options_description &od

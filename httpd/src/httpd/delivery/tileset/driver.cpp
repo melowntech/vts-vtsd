@@ -112,9 +112,8 @@ void TsDriver::handle(Sink sink, const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openTileSet(const std::string &path, int flags)
+DriverWrapper::pointer openTileSet(const std::string &path)
 {
-    (void) flags;
     return std::make_shared<TsDriver>
         (ts::Driver::open(path, ts::OpenMode::readOnly));
 }

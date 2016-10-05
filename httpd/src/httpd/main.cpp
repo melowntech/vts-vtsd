@@ -62,13 +62,7 @@ private:
                 , const http::ServerSink::pointer &sink
                 , const LocationConfig &location);
 
-    void handleDataset(const fs::path &filePath, const http::Request &request
-                       , const http::ServerSink::pointer &sink
-                       , const LocationConfig &location);
-
-    void handlePlain(const fs::path &filePath, const http::Request &request
-                     , const http::ServerSink::pointer &sink
-                     , const LocationConfig &location);
+    bool tryOpen(const fs::path &filePath);
 
     void configuration(po::options_description &cmdline
                        , po::options_description &config
@@ -140,7 +134,7 @@ Daemon::configure(const po::variables_map &vars
         ("Location configuration.");
 
     const std::string optPrefix("location");
-    const auto optPrefixDotted(optPrefix + ":");
+    const auto optPrefixDotted(optPrefix + "<");
     const auto optPrefixDashed("--" + optPrefixDotted);
 
     std::set<std::string> locations;
@@ -148,7 +142,7 @@ Daemon::configure(const po::variables_map &vars
     auto collect([&](const std::string &option, const std::string &prefix)
     {
         if (option.find(prefix) != 0) { return; }
-        auto scolon(option.find(':', prefix.size()));
+        auto scolon(option.find('>', prefix.size()));
         if (scolon == std::string::npos) { return; }
         auto location(option.substr(prefix.size()
                                     , scolon - prefix.size()));
@@ -171,7 +165,7 @@ Daemon::configure(const po::variables_map &vars
         locations_.push_back(defaultConfig_);
         locations_.back().location = location;
         locations_.back().configuration
-            (parser.options, "location:" + location + ":.");
+            (parser.options, "location<" + location + ">.");
     }
 
     return parser;
@@ -271,18 +265,6 @@ int Daemon::run()
     return EXIT_SUCCESS;
 }
 
-void Daemon::handle(const fs::path &filePath
-                    , const http::Request &request
-                    , const http::ServerSink::pointer &sink
-                    , const LocationConfig &location)
-{
-    if (location.enableDataset) {
-        handleDataset(filePath, request, sink, location);
-    } else {
-        handlePlain(filePath, request, sink, location);
-    }
-}
-
 void sendListing(const fs::path &path, const http::ServerSink::pointer &sink)
 {
     http::ServerSink::Listing listing;
@@ -298,45 +280,61 @@ void sendListing(const fs::path &path, const http::ServerSink::pointer &sink)
     sink->listing(listing);
 }
 
-void Daemon::handleDataset(const fs::path &filePath
-                           , const http::Request &request
-                           , const http::ServerSink::pointer &sink
-                           , const LocationConfig &location)
+bool Daemon::tryOpen(const fs::path &filePath)
+{
+    try {
+        deliveryCache_.get(filePath.string());
+    } catch (...) {
+        // could not open dataset
+        return false;
+    }
+    // dataset openend -> fine
+    return true;
+}
+
+void Daemon::handle(const fs::path &filePath
+                    , const http::Request&
+                    , const http::ServerSink::pointer &sink
+                    , const LocationConfig &location)
 {
     auto parent(filePath.parent_path());
     auto file(filePath.filename());
 
     try {
-        deliveryCache_.get(parent.string(), 0)
+        deliveryCache_.get(parent.string())
             ->handle(Sink(sink, location), file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {
-            sink->error(utility::makeError<NotFound>("No such dataset"));
+            sink->error(utility::makeError<NotFound>("Path doesn't exist."));
             return;
         }
-        auto isDirectory(is_directory(status(filePath)));
 
-        if (isDirectory) {
+        if (is_directory(status(filePath))) {
             if (file != ".") {
                 // directory redirect
                 sink->seeOther(file.string() + "/");
                 return;
             }
 
-            if (location.enableBrowser) {
+            if (location.enableListing) {
                 // directory and we have enabled browser -> directory listing
                 sendListing(parent, sink);
                 return;
             }
+
             // browser not enabled -> forbidden
             sink->error(utility::makeError<Forbidden>("Unbrowsable"));
+        } else if (tryOpen(filePath)) {
+            // non-directory dataset -> treat as a directory -> redirect
+            sink->seeOther(file.string() + "/");
+            return;
         }
 
         // not found
         sink->error(utility::makeError<NotFound>("No such dataset"));
         return;
     } catch (NoBody) {
-        if (location.enableBrowser) {
+        if (location.enableListing) {
             // directory and we have enabled browser -> directory listing
             sendListing(parent, sink);
             return;
@@ -358,20 +356,6 @@ void Daemon::handleDataset(const fs::path &filePath
         LOG(err1) << e.what();
         sink->error(utility::makeError<NotFound>("Domain error"));
     }
-
-    (void) request;
-}
-
-void Daemon::handlePlain(const fs::path &filePath
-                         , const http::Request &request
-                         , const http::ServerSink::pointer &sink
-                         , const LocationConfig &location)
-{
-    throw InternalError("Not implemented yet.");
-    (void) filePath;
-    (void) request;
-    (void) sink;
-    (void) location;
 }
 
 void Daemon::generate_impl(const http::Request &request
