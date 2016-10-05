@@ -26,6 +26,8 @@ public:
     void setMaxAge(FileClass fc, long value);
     long getMaxAge(FileClass fc) const;
 
+    void dump(std::ostream &os, const std::string &prefix) const;
+
 private:
     std::array<long, static_cast<int>(FileClass::unknown) + 1> maxAges_;
 };

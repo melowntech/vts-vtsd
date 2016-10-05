@@ -17,3 +17,10 @@ void FileClassSettings::configuration(po::options_description &od
            .c_str());
     }
 }
+
+void FileClassSettings::dump(std::ostream &os, const std::string &prefix) const
+{
+    for (auto fc : enumerationValues(FileClass())) {
+        os << prefix << fc << " = " << getMaxAge(fc) << "\n";
+    }
+}

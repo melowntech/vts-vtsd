@@ -18,6 +18,7 @@ struct LocationConfig {
     bool enableListing;
     vs::SupportFile::Vars vars;
     FileClassSettings fileClassSettings;
+    boost::filesystem::path alias;
 
     LocationConfig()
         : enableBrowser(false), enableListing(false)

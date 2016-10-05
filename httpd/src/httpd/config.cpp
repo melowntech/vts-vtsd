@@ -15,6 +15,9 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "vts.builtinBrowserUrl").c_str()
          , po::value(&vars["VTS_BUILTIN_BROWSER_URL"])
          , "URL of built in browser.")
+        ((prefix + "alias").c_str()
+         , po::value(&alias)
+         , "Alias location to different directory.")
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");
@@ -25,4 +28,11 @@ void LocationConfig::dump(std::ostream &os, const std::string &prefix) const
     os << prefix << "browser = " << enableBrowser << "\n"
        << prefix << "listing = " << enableListing << "\n"
         ;
+
+    if (!alias.empty()) {
+        os << prefix << "alias = " << alias << "\n";
+    } else {
+        os << prefix << "alias = none\n";
+    }
+    fileClassSettings.dump(os, prefix + "max-age.");
 }

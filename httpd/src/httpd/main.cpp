@@ -323,11 +323,10 @@ void Daemon::handle(const fs::path &filePath
             }
 
             // browser not enabled -> forbidden
-            sink->error(utility::makeError<Forbidden>("Unbrowsable"));
+            return sink->error(utility::makeError<Forbidden>("Unbrowsable"));
         } else if (tryOpen(filePath)) {
             // non-directory dataset -> treat as a directory -> redirect
-            sink->seeOther(file.string() + "/");
-            return;
+            return sink->seeOther(file.string() + "/");
         }
 
         // not found
@@ -361,12 +360,21 @@ void Daemon::handle(const fs::path &filePath
 void Daemon::generate_impl(const http::Request &request
                            , const http::ServerSink::pointer &sink)
 {
-    const auto filePath(boost::filesystem::path(root_) / request.path);
-
     for (const auto location : locations_) {
-        if (ba::starts_with(request.uri, location.location)) {
-            handle(filePath, request, sink, location);
-            return;
+        if (ba::starts_with(request.path, location.location)) {
+            if (location.alias.empty()) {
+                // no alias, just append with root
+                const auto filePath(root_ / request.path);
+                return handle(filePath, request, sink, location);
+            }
+
+            // apply alias and handle
+            // cut from path
+            auto path(request.path.substr(location.location.size()));
+
+            // TODO: check for "./" and "../"!
+            const fs::path filePath(location.alias.string() + path);
+            return handle(filePath, request, sink, location);
         }
     }
     throw NotFound("No location handler found.");
