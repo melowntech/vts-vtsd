@@ -43,4 +43,4 @@ add_subdirectory(src/vts-libs)
 add_custom_target(.vts ALL DEPENDS vts vts02vts vts2vts ts2vts0 vts0)
 
 # project
-add_subdirectory(src/httpd)
+add_subdirectory(src/vtsd)
