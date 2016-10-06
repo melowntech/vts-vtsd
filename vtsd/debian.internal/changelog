@@ -1,3 +1,10 @@
+ctt-vts-vtsd (0.2) citationtech-wheezy; urgency=low
+
+  * Non-dataset handler.
+  * Regex locations.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Thu, 06 Oct 2016 18:37:36 +0200
+
 ctt-vts-vtsd (0.1) citationtech-wheezy; urgency=low
 
   * Initial build.
