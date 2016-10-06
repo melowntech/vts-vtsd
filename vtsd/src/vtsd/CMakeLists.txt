@@ -22,11 +22,11 @@ set(httpd_SOURCES
   main.cpp
   )
 
-add_executable(vtsd ${httpd_SOURCES} ${httpd_BROWSER_SOURCES})
+add_executable(vtsd ${httpd_SOURCES})
 target_link_libraries(vtsd ${MODULE_LIBRARIES})
 buildsys_target_compile_definitions(vtsd ${MODULE_DEFINITIONS})
 buildsys_binary(vtsd)
-set_target_version(vtsd ${httpd_VERSION})
+set_target_version(vtsd ${vtsd_VERSION})
 
 # ------------------------------------------------------------------------
 # --- installation

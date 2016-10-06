@@ -17,6 +17,7 @@
 
 #include "http/http.hpp"
 
+#include "vts-libs/storage/fstreams.hpp"
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/registry/po.hpp"
 
@@ -58,9 +59,25 @@ private:
     virtual void generate_impl(const http::Request &request
                                , const http::ServerSink::pointer &sink);
 
+    void handlePrefix(const LocationConfig &location
+                     , const http::Request &request
+                     , const http::ServerSink::pointer &sink);
+
+    void handleRegex(const LocationConfig &location
+                     , const LocationConfig::MatchResult &m
+                     , const http::Request &request
+                     , const http::ServerSink::pointer &sink);
+
+
     void handle(const fs::path &filePath, const http::Request &request
                 , const http::ServerSink::pointer &sink
                 , const LocationConfig &location);
+
+    void handleDataset(const fs::path &filePath, const http::Request &request
+                       , Sink sink, const LocationConfig &location);
+
+    void handlePlain(const fs::path &filePath, const http::Request &request
+                     , Sink sink, const LocationConfig &location);
 
     bool tryOpen(const fs::path &filePath);
 
@@ -100,6 +117,8 @@ private:
 
     LocationConfig defaultConfig_;
     LocationConfig::list locations_;
+    LocationConfig::list prefixLocations_;
+    LocationConfig::list regexLocations_;
 
     boost::optional<http::Http> http_;
 
@@ -136,7 +155,8 @@ Daemon::configure(const po::variables_map &vars
     const auto optPrefixDotted(optPrefix + "<");
     const auto optPrefixDashed("--" + optPrefixDotted);
 
-    std::set<std::string> locations;
+    std::set<std::string> seen;
+    std::vector<std::string> locations;
 
     auto collect([&](const std::string &option, const std::string &prefix)
     {
@@ -145,24 +165,23 @@ Daemon::configure(const po::variables_map &vars
         if (scolon == std::string::npos) { return; }
         auto location(option.substr(prefix.size()
                                     , scolon - prefix.size()));
-        locations.insert(location);
+        if (seen.insert(location).second) {
+            locations.push_back(location);
+        }
     });
 
     for (const auto &option : unrecognized.cmdline) {
         collect(option, optPrefixDashed);
     }
 
-    for (const auto &config : unrecognized.config) {
-        for (const auto &options : config) {
-            collect(options.first, optPrefixDotted);
-        }
+    for (const auto &key : unrecognized.seenConfigKeys) {
+        collect(key, optPrefixDotted);
     }
 
     locations_.reserve(locations.size());
 
     for (const auto &location : locations) {
-        locations_.push_back(defaultConfig_);
-        locations_.back().location = location;
+        locations_.emplace_back(defaultConfig_, location);
         locations_.back().configuration
             (parser.options, "location<" + location + ">.");
     }
@@ -185,12 +204,29 @@ void Daemon::configure(const po::variables_map &vars)
         location.configure(vars, "location<" + location.location + ">.");
     }
 
-    // sort locations in reverse
-    std::sort(locations_.begin(), locations_.end()
-              , [&](const LocationConfig &l, const LocationConfig &r)
+    // sort locations:
     {
-        return l.location > r.location;
-    });
+        // grab prefix locations
+        std::copy_if(locations_.begin(), locations_.end()
+                     , std::back_inserter(prefixLocations_)
+                     , [&](const LocationConfig &l) {
+                         return l.match == LocationConfig::Match::prefix;
+                     });
+
+        // sort them in reverese order (i.e. longest first)
+        std::sort(prefixLocations_.begin(), prefixLocations_.end()
+                  , [&](const LocationConfig &l, const LocationConfig &r)
+        {
+            return l.location > r.location;
+        });
+
+        // then regex expressions in the order they were configured
+        std::copy_if(locations_.begin(), locations_.end()
+                     , std::back_inserter(regexLocations_)
+                     , [&](const LocationConfig &l) {
+                         return l.match == LocationConfig::Match::regex;
+                     });
+    }
 
     LOG(info3, log_)
         << std::boolalpha
@@ -198,7 +234,13 @@ void Daemon::configure(const po::variables_map &vars)
         << "\n\thttp.listen = " << httpListen_
         << "\n\thttp.threadCount = " << httpThreadCount_
         << utility::LManip([&](std::ostream &os) {
-                for (const auto &location : locations_) {
+                for (const auto &location : prefixLocations_) {
+                    os << "\n\tlocation <" << location.location << ">:\n";
+                    location.dump(os, "\t\t");
+                }
+            })
+        << utility::LManip([&](std::ostream &os) {
+                for (const auto &location : regexLocations_) {
                     os << "\n\tlocation <" << location.location << ">:\n";
                     location.dump(os, "\t\t");
                 }
@@ -247,6 +289,9 @@ service::Service::Cleanup Daemon::start()
     deliveryCache_ = boost::in_place();
 
     http_ = boost::in_place();
+    http_->serverHeader(utility::format
+                        ("%s/%s", utility::buildsys::TargetName
+                         , utility::buildsys::TargetVersion));
     http_->listen(httpListen_, std::ref(*this));
     http_->startServer(httpThreadCount_);
 
@@ -278,7 +323,7 @@ int Daemon::run()
     return EXIT_SUCCESS;
 }
 
-void sendListing(const fs::path &path, const http::ServerSink::pointer &sink
+void sendListing(const fs::path &path, Sink &sink
                  , const Sink::Listing &bootstrap = Sink::Listing())
 {
     http::ServerSink::Listing listing(bootstrap);
@@ -291,7 +336,7 @@ void sendListing(const fs::path &path, const http::ServerSink::pointer &sink
                                 : http::ServerSink::ListingItem::Type::file));
     }
 
-    sink->listing(listing);
+    sink.listing(listing);
 }
 
 bool Daemon::tryOpen(const fs::path &filePath)
@@ -307,26 +352,70 @@ bool Daemon::tryOpen(const fs::path &filePath)
 }
 
 void Daemon::handle(const fs::path &filePath
-                    , const http::Request&
+                    , const http::Request &request
                     , const http::ServerSink::pointer &sink
                     , const LocationConfig &location)
+{
+    if (location.enableDataset) {
+        return handleDataset
+            (filePath, request, Sink(sink, location), location);
+    }
+    return handlePlain(filePath, request, Sink(sink, location), location);
+}
+
+void Daemon::handlePlain(const fs::path &filePath, const http::Request&
+                         , Sink sink, const LocationConfig &location)
+{
+    try {
+        // directory handling
+        if (is_directory(status(filePath))) {
+            auto file(filePath.filename());
+            if (file != ".") {
+                // directory redirect
+                sink.seeOther(file.string() + "/");
+                return;
+            }
+
+            if (location.enableListing) {
+                // directory and we have enabled browser -> directory listing
+                sendListing(filePath, sink);
+                return;
+            }
+
+            // listing not enabled -> forbidden
+            LOG(err1) << "Path " << filePath << " is unlistable.";
+        }
+
+        // TODO: set proper content type
+
+        sink.content(vs::fileIStream("application/octet-stream", filePath)
+                     , FileClass::data);
+    } catch (const vs::NoSuchFile &e) {
+        LOG(err1) << e.what();
+        sink.error(utility::makeError<NotFound>("No such file"));
+    }
+}
+
+void Daemon::handleDataset(const fs::path &filePath, const http::Request&
+                           , Sink sink, const LocationConfig &location)
 {
     auto parent(filePath.parent_path());
     auto file(filePath.filename());
 
     try {
         deliveryCache_->get(parent.string())
-            ->handle(Sink(sink, location), file.string(), location);
+            ->handle(sink, file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {
-            sink->error(utility::makeError<NotFound>("Path doesn't exist."));
+            LOG(err1) << "Path " << filePath << " doesn't exist.";
+            sink.error(utility::makeError<NotFound>("Path doesn't exist."));
             return;
         }
 
         if (is_directory(status(filePath))) {
             if (file != ".") {
                 // directory redirect
-                sink->seeOther(file.string() + "/");
+                sink.seeOther(file.string() + "/");
                 return;
             }
 
@@ -336,15 +425,17 @@ void Daemon::handle(const fs::path &filePath
                 return;
             }
 
-            // browser not enabled -> forbidden
-            return sink->error(utility::makeError<Forbidden>("Unbrowsable"));
+            // listing not enabled -> forbidden
+            LOG(err1) << "Path " << filePath << " is unlistable.";
+            return sink.error(utility::makeError<Forbidden>("Unlistable"));
         } else if (tryOpen(filePath)) {
             // non-directory dataset -> treat as a directory -> redirect
-            return sink->seeOther(file.string() + "/");
+            return sink.seeOther(file.string() + "/");
         }
 
         // not found
-        sink->error(utility::makeError<NotFound>("No such dataset"));
+        LOG(err1) << "No dataset found at " << filePath << ".";
+        sink.error(utility::makeError<NotFound>("No such dataset"));
         return;
     } catch (const ListContent &lc) {
         if (location.enableListing) {
@@ -352,46 +443,105 @@ void Daemon::handle(const fs::path &filePath
             sendListing(parent, sink, lc.listingBootstrap);
             return;
         }
-        sink->error(utility::makeError<Forbidden>("Unbrowsable"));
+        LOG(err1) << "Path " << filePath << " is unlistable.";
+        sink.error(utility::makeError<Forbidden>("Unbrowsable"));
     } catch (const std::system_error &e) {
         LOG(err1) << e.what();
         if (e.code().category() == std::system_category()) {
             if (e.code().value() == ENOENT) {
-                return sink->error
+                return sink.error
                     (utility::makeError<NotFound>("No such file"));
             }
         }
     } catch (const vs::NoSuchFile &e) {
         LOG(err1) << e.what();
-        sink->error(utility::makeError<NotFound>("No such file"));
+        sink.error(utility::makeError<NotFound>("No such file"));
 
     } catch (std::domain_error &e) {
         LOG(err1) << e.what();
-        sink->error(utility::makeError<NotFound>("Domain error"));
+        sink.error(utility::makeError<NotFound>("Domain error"));
     }
+}
+
+void Daemon::handlePrefix(const LocationConfig &location
+                          , const http::Request &request
+                          , const http::ServerSink::pointer &sink)
+{
+    if (!location.root.empty()) {
+        // use root
+        const auto filePath(location.root / request.path);
+        return handle(filePath, request, sink, location);
+    }
+
+    // apply alias and handle
+    // cut from path
+    auto path(request.path.substr(location.location.size()));
+
+    // TODO: check for "./" and "../"!
+    const fs::path filePath(location.alias.string() + path);
+    handle(filePath, request, sink, location);
+}
+
+void Daemon::handleRegex(const LocationConfig &location
+                         , const LocationConfig::MatchResult &m
+                         , const http::Request &request
+                         , const http::ServerSink::pointer &sink)
+{
+    // matched
+    if (!location.root.empty()) {
+        // use root
+        const auto filePath(location.root / request.path);
+        return handle(filePath, request, sink, location);
+    }
+
+    // TODO: check for "./" and "../"!
+    const fs::path filePath(m.format(location.alias.string()
+                                     , boost::format_no_copy));
+    LOG(info4) << "location.alias: " << location.alias;
+    LOG(info4) << "filePath: " << filePath;
+
+    handle(filePath, request, sink, location);
 }
 
 void Daemon::generate_impl(const http::Request &request
                            , const http::ServerSink::pointer &sink)
 {
-    for (const auto location : locations_) {
+    const LocationConfig *matchedLocation(nullptr);
+
+    // try prefix locations
+    for (const auto &location : prefixLocations_) {
+        LOG(debug) << "matching: " << request.path
+                   << " against prefix " << location.location;
         if (ba::starts_with(request.path, location.location)) {
-            if (!location.root.empty()) {
-                // use root
-                const auto filePath(location.root / request.path);
-                return handle(filePath, request, sink, location);
-            }
-
-            // apply alias and handle
-            // cut from path
-            auto path(request.path.substr(location.location.size()));
-
-            // TODO: check for "./" and "../"!
-            const fs::path filePath(location.alias.string() + path);
-            return handle(filePath, request, sink, location);
+            // remember and done
+            matchedLocation = &location;
+            break;
         }
     }
-    throw NotFound("No location handler found.");
+
+    // then try regex locations
+    LocationConfig::MatchResult m;
+    for (const auto &location : regexLocations_) {
+        LOG(debug) << "matching: " << request.path
+                   << " against regex " << location.location;
+        if (boost::regex_search(request.path, m, *location.regex)) {
+            // remember and done
+            matchedLocation = &location;
+            break;
+        }
+    }
+
+    if (!matchedLocation) {
+        throw NotFound("No matching location found.");
+    }
+
+    switch (matchedLocation->match) {
+    case LocationConfig::Match::prefix:
+        return handlePrefix(*matchedLocation, request, sink);
+
+    case LocationConfig::Match::regex:
+        return handleRegex(*matchedLocation, m, request, sink);
+    }
 }
 
 int main(int argc, char *argv[])

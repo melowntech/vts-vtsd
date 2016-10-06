@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.11)
 include(buildsys/cmake/buildsys.cmake)
 
 # project
-setup_project(httpd "${BUILDSYS_PACKAGE_VERSION}")
+setup_project(vtsd "${BUILDSYS_PACKAGE_VERSION}")
 
 find_package(Boost 1.46 REQUIRED
   COMPONENTS thread program_options filesystem system date_time
