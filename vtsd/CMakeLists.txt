@@ -25,6 +25,9 @@ find_package(PNG REQUIRED)
 find_package(magic REQUIRED)
 find_package(CURL REQUIRED)
 
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
+
 # dependencies
 add_subdirectory(src/dbglog)
 add_subdirectory(src/utility)
