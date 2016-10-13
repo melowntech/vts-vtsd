@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.4) citationtech-wheezy; urgency=low
+
+  * Fixed startup logging.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Thu, 13 Oct 2016 11:36:32 +0200
+
 ctt-vts-vtsd (0.3) citationtech-wheezy; urgency=low
 
   * New libraries.

@@ -70,11 +70,18 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
        << prefix << "listing = " << enableListing << "\n"
         ;
 
+    if (!root.empty()) {
+        os << prefix << "root = " << root << "\n";
+    } else {
+        os << prefix << "root = none\n";
+    }
+
     if (!alias.empty()) {
         os << prefix << "alias = " << alias << "\n";
     } else {
         os << prefix << "alias = none\n";
     }
+
     fileClassSettings.dump(os, prefix + "max-age.");
 
     for (const auto &var : vars) {
