@@ -24,9 +24,10 @@ namespace ExtraFlags { enum {
 }; }
 
 struct VtsFileInfo : public FileInfo {
-    /** Request for raw file, not translation.
+    /** Distinguishes non-regular file from interpreted (i.e. tileset.conf from
+     *  mapConfig.json)
      */
-    bool raw;
+    vts::FileFlavor flavor;
 
     /** tileId; valid only when (type == Type::tileFile)
      */
@@ -59,9 +60,9 @@ namespace constants {
 
 VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
                          , int extraFlags)
-    : FileInfo(p), raw(false), subTileFile(0), registry()
+    : FileInfo(p), flavor(vts::FileFlavor::regular), subTileFile(0), registry()
 {
-    if (vts::fromFilename(tileId, tileFile, subTileFile, path, 0, &raw)) {
+    if (vts::fromFilename(tileId, tileFile, subTileFile, path, 0, &flavor)) {
         type = Type::tileFile;
         return;
     }
@@ -110,7 +111,7 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
             type = Type::file;
             file = vs::File::config;
             // we need raw config file
-            raw = true;
+            flavor = vts::FileFlavor::raw;
             return;
         }
 
@@ -277,7 +278,9 @@ void VtsTileSet::handle(Sink sink, const std::string &path
                             , fileinfo(mapConfig_.dirsStat, -1));
 
     case FileInfo::Type::file:
-        if ((info.file == vs::File::config) && !info.raw) {
+        if ((info.file == vs::File::config)
+            && (info.flavor == vts::FileFlavor::regular))
+        {
             // serve updated map config
             return sink.content(mapConfig_.data
                                 , fileinfo(mapConfig_.stat, -1));
@@ -294,11 +297,12 @@ void VtsTileSet::handle(Sink sink, const std::string &path
         auto is([&]() -> vs::IStream::pointer
         {
             std::unique_lock<std::mutex> guard(mutex_);
-            return delivery_->input(info.tileId, info.tileFile);
+            return delivery_->input
+                (info.tileId, info.tileFile, info.flavor);
         }());
 
         // raw data?
-        if (info.raw) {
+        if (info.flavor == vts::FileFlavor::raw) {
             return sink.content(is, FileClass::data);
         }
 
