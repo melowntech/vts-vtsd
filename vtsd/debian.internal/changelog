@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.5) citationtech-wheezy; urgency=low
+
+  * Added debug interface.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Mon, 17 Oct 2016 13:23:23 +0200
+
 ctt-vts-vtsd (0.4) citationtech-wheezy; urgency=low
 
   * Fixed startup logging.
