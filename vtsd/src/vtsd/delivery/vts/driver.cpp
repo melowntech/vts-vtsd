@@ -47,6 +47,7 @@ namespace constants {
     const std::string Config("mapConfig.json");
     const std::string Dirs("dirs.json");
     const std::string FreeLayerDefinition("freelayer.json");
+    const std::string DebugConfig("debug.json");
     const std::string Self(".");
     const std::string Index("index.html");
 
@@ -127,6 +128,14 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
             return;
         }
     }
+
+    // debug config file
+    if (constants::DebugConfig == path) {
+        type = Type::file;
+        file = vs::File::config;
+        flavor = vts::FileFlavor::debug;
+        return;
+    }
 }
 
 struct MapConfig {
@@ -178,18 +187,36 @@ struct MapConfig {
 struct Definition {
     std::string data;
     vs::FileStat stat;
+    std::string debugData;
+    vs::FileStat debugStat;
 
     template <typename Source>
-    Definition(const Source &source) {
-        auto fl(vts::freeLayer(source.meshTilesConfig()));
+    Definition(Source &source) {
+        const auto mtc(source.meshTilesConfig());
 
-        std::ostringstream os;
-        vr::saveFreeLayer(os, fl);
-        data = os.str();
+        {
+            const auto fl(vts::freeLayer(mtc));
 
-        stat.lastModified = source.lastModified();
-        stat.size = data.size();
-        stat.contentType = vts::MeshTilesConfig::contentType;
+            std::ostringstream os;
+            vr::saveFreeLayer(os, fl);
+            data = os.str();
+
+            stat.lastModified = source.lastModified();
+            stat.size = data.size();
+            stat.contentType = vts::MeshTilesConfig::contentType;
+        }
+
+        {
+            const auto dc(vts::debugConfig(mtc));
+
+            std::ostringstream os;
+            vts::saveDebug(os, dc);
+            debugData = os.str();
+
+            debugStat.lastModified = source.lastModified();
+            debugStat.size = debugData.size();
+            debugStat.contentType = vts::DebugConfig::contentType;
+        }
     }
 };
 
@@ -214,7 +241,6 @@ public:
 
 private:
     vts::Delivery::pointer delivery_;
-
     MapConfig mapConfig_;
     Definition definition_;
     std::mutex mutex_;
@@ -278,15 +304,23 @@ void VtsTileSet::handle(Sink sink, const std::string &path
                             , fileinfo(mapConfig_.dirsStat, -1));
 
     case FileInfo::Type::file:
-        if ((info.file == vs::File::config)
-            && (info.flavor == vts::FileFlavor::regular))
-        {
-            // serve updated map config
-            return sink.content(mapConfig_.data
-                                , fileinfo(mapConfig_.stat, -1));
+        if (info.file == vs::File::config) {
+            switch (info.flavor) {
+            case vts::FileFlavor::regular:
+                // serve updated map config
+                return sink.content(mapConfig_.data
+                                    , fileinfo(mapConfig_.stat, -1));
+
+            case vts::FileFlavor::debug:
+                return sink.content(definition_.debugData
+                                    , fileinfo(definition_.debugStat, -1));
+            default:
+                // pass
+                break;
+            }
         }
 
-        // serve internal file
+        // serve internal (raw) file
         {
             std::unique_lock<std::mutex> guard(mutex_);
             return sink.content(delivery_->input(info.file), FileClass::data);
