@@ -1,11 +1,15 @@
 #include <mutex>
 
+#include "imgproc/png.hpp"
+
 #include "vts-libs/vts/support.hpp"
 #include "vts-libs/vts.hpp"
 #include "vts-libs/vts/tileop.hpp"
 #include "vts-libs/vts/tileset/driver.hpp"
 #include "vts-libs/vts/tileset/delivery.hpp"
 #include "vts-libs/storage/fstreams.hpp"
+#include "vts-libs/vts/2d.hpp"
+#include "vts-libs/vts/debug.hpp"
 
 #include "./driver.hpp"
 
@@ -486,6 +490,137 @@ void VtsStorageView::handle(Sink sink, const std::string &path
     sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 
+class VtsTileIndex : public DriverWrapper
+{
+public:
+    VtsTileIndex(const fs::path &path)
+        : path_(path), stat_(vs::FileStat::stat(path))
+    {
+        // load tile index
+        ti_.load(path);
+
+        // and generate debug data
+
+        vts::DebugConfig dc;
+        {
+            dc.meta = vts::fileTemplate(vs::TileFile::meta
+                                        , vts::FileFlavor::debug
+                                        , stat_.lastModified);
+            dc.mask = vts::fileTemplate(vs::TileFile::mask
+                                        , vts::FileFlavor::debug
+                                        , stat_.lastModified);
+            const auto ranges(ti_.ranges(vts::TileIndex::Flag::mesh));
+            dc.lodRange = ranges.first;
+            dc.tileRange = ranges.second;
+        }
+
+        std::ostringstream os;
+        vts::saveDebug(os, dc);
+        debugData_ = os.str();
+
+        debugStat_ = stat_;
+        debugStat_.contentType = vs::contentType(vs::File::config);
+
+        maskStat_ = stat_;
+        maskStat_.contentType = vs::contentType(vs::TileFile::mask);
+    }
+
+    virtual vs::Resources resources() const {
+        return {};
+    }
+
+    virtual bool externallyChanged() const {
+        return stat_.changed(vs::FileStat::stat(path_));
+    }
+
+    virtual void handle(Sink sink, const std::string &path
+                        , const LocationConfig &config);
+
+    virtual bool hotContent() const { return false; }
+
+private:
+    const fs::path path_;
+    vts::TileIndex ti_;
+    vs::FileStat stat_;
+    std::string debugData_;
+    vs::FileStat debugStat_;
+    vs::FileStat maskStat_;
+};
+
+const auto emptyDebugMask([]() -> std::vector<char>
+{
+    return imgproc::png::serialize(vts::emptyDebugMask(), 9);
+}());
+
+const auto fullDebugMask([]() -> std::vector<char>
+{
+    return imgproc::png::serialize(vts::fullDebugMask(), 9);
+}());
+
+void VtsTileIndex::handle(Sink sink, const std::string &path
+                          , const LocationConfig &config)
+{
+    VtsFileInfo info(path, config);
+
+    switch (info.type) {
+    case FileInfo::Type::file:
+        if (info.flavor == vts::FileFlavor::debug) {
+            switch (info.file) {
+            case vs::File::config:
+                return sink.content
+                    (debugData_, fileinfo(debugStat_, FileClass::config));
+
+            default: break;
+            }
+        }
+        break;
+
+    case FileInfo::Type::tileFile:
+        if (info.flavor == vts::FileFlavor::debug) {
+            switch (info.tileFile) {
+            case vs::TileFile::meta:
+                {
+                    std::ostringstream os;
+                    vts::saveDebug
+                        (os, vts::getNodeDebugInfo(ti_, info.tileId));
+                    sink.content(os.str()
+                                 , fileinfo(debugStat_, FileClass::data));
+                }
+                break;
+
+            case vs::TileFile::mask:
+                sink.content
+                    ((ti_.checkMask(info.tileId, vts::TileIndex::Flag::real)
+                      ? fullDebugMask : emptyDebugMask)
+                     , fileinfo(maskStat_, FileClass::data));
+                break;
+
+            default: break;
+            }
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    // unknonw file, let's test other members
+    if (info.registry) {
+        // it's registry file!
+        return sink.content(vs::fileIStream(info.registry->contentType
+                                            , info.registry->path)
+                            , FileClass::registry);
+    }
+
+    if (info.support) {
+        // support file
+        return sink.content(info.support->second);
+    }
+
+    // wtf?
+    sink.error(utility::makeError<NotFound>("Unknown file."));
+}
+
 } // namespace
 
 DriverWrapper::pointer openVts(const std::string &path)
@@ -500,6 +635,9 @@ DriverWrapper::pointer openVts(const std::string &path)
     case vts::DatasetType::StorageView:
         return std::make_shared<VtsStorageView>
             (vts::openStorageView(path));
+
+    case vts::DatasetType::TileIndex:
+        return std::make_shared<VtsTileIndex>(path);
 
     default:
         // no such tileset
