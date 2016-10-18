@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.6) citationtech-wheezy; urgency=low
+
+  * tile index as a dataset support
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Tue, 18 Oct 2016 13:25:24 +0200
+
 ctt-vts-vtsd (0.5) citationtech-wheezy; urgency=low
 
   * Added debug interface.
