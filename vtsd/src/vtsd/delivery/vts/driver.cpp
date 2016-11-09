@@ -584,16 +584,15 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
                     vts::saveDebug
                         (os, vts::getNodeDebugInfo(ti_, info.tileId));
                     sink.content(os.str()
-                                 , fileinfo(debugStat_, FileClass::data));
+                                        , fileinfo(debugStat_, FileClass::data));
                 }
-                break;
+                return;
 
             case vs::TileFile::mask:
-                sink.content
+                return sink.content
                     ((ti_.checkMask(info.tileId, vts::TileIndex::Flag::real)
                       ? fullDebugMask : emptyDebugMask)
                      , fileinfo(maskStat_, FileClass::data));
-                break;
 
             default: break;
             }
