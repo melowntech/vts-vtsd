@@ -143,6 +143,8 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
 }
 
 struct MapConfig {
+    std::string referenceFrameId;
+
     std::string data;
     vs::FileStat stat;
 
@@ -155,6 +157,7 @@ struct MapConfig {
     MapConfig(const Source &source) {
         // build map configuration
         auto mc(source.mapConfig());
+        referenceFrameId = mc.referenceFrame.id;
         mc.srs.for_each([](vr::Srs &srs)
         {
             if (!srs.geoidGrid) { return; }
@@ -195,7 +198,7 @@ struct Definition {
     vs::FileStat debugStat;
 
     template <typename Source>
-    Definition(Source &source) {
+    Definition(Source &source, const std::string &referenceFrameId) {
         const auto mtc(source.meshTilesConfig());
 
         {
@@ -211,7 +214,7 @@ struct Definition {
         }
 
         {
-            const auto dc(vts::debugConfig(mtc));
+            const auto dc(vts::debugConfig(mtc, referenceFrameId));
 
             std::ostringstream os;
             vts::saveDebug(os, dc);
@@ -229,7 +232,8 @@ class VtsTileSet : public DriverWrapper
 public:
     VtsTileSet(const std::string &path)
         : delivery_(vts::Delivery::open(path))
-        , mapConfig_(*delivery_), definition_(*delivery_)
+        , mapConfig_(*delivery_)
+        , definition_(*delivery_, mapConfig_.referenceFrameId)
     {}
 
     virtual vs::Resources resources() const {
