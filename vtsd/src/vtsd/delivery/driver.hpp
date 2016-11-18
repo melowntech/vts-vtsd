@@ -26,7 +26,7 @@ struct ListContent {
 
 struct FileInfo {
     enum class Type {
-        unknown, file, tileFile, support, definition, dirs
+        unknown, file, tileFile, support, definition, dirs, tilesetMapping
     };
 
     std::string path;

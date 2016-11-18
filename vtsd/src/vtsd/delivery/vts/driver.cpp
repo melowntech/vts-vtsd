@@ -10,6 +10,7 @@
 #include "vts-libs/storage/fstreams.hpp"
 #include "vts-libs/vts/2d.hpp"
 #include "vts-libs/vts/debug.hpp"
+#include "vts-libs/vts/virtualsurface.hpp"
 
 #include "./driver.hpp"
 
@@ -85,6 +86,11 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
 
     if (constants::Dirs == path) {
         type = Type::dirs;
+        return;
+    }
+
+    if (vts::VirtualSurface::TilesetMappingPath == path) {
+        type = Type::tilesetMapping;
         return;
     }
 
@@ -355,6 +361,14 @@ void VtsTileSet::handle(Sink sink, const std::string &path
     case FileInfo::Type::support:
         sink.content(info.support->second);
         return;
+
+    case FileInfo::Type::tilesetMapping: {
+        // get input stream (locked)
+        std::unique_lock<std::mutex> guard(mutex_);
+        return sink.content
+            (delivery_->input(vts::VirtualSurface::TilesetMappingPath)
+             , FileClass::config);
+    }
 
     case FileInfo::Type::unknown:
         // unknown file, let's test other members
