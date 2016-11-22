@@ -1,0 +1,18 @@
+Source: ctt-vts-seznamcz-vtsd
+Section: non-free/citationtech
+Priority: extra
+Maintainer: Vaclav Blazek <vaclav.blazek@citationtech.net>
+Build-Depends: debhelper (>= 7.0.50~), libboost-all-dev (>= 1.49)
+               , libgdal-dev (>= 2.0), libproj-dev (>= 4.9)
+Standards-Version: 3.8.4
+Homepage: https://www.melown.com/maps
+
+Package: ctt-vts-seznamcz-vtsd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ctt-vts-seznamcz-registry (>= 1.0)
+Description: VTS HTTP backend server
+
+Package: ctt-vts-seznamcz-vtsd-dbg
+Architecture: any
+Depends: ${misc:Depends}, ctt-vts-seznamcz-vtsd (= ${binary:Version})
+Description: Debug Symbols for ctt-vts-seznamcz-vtsd
