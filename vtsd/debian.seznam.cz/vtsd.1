@@ -1,0 +1,96 @@
+.TH "vtsd" 1 "Thu Nov 24 2016" "vtsd" \" -*- nroff -*-
+.ad l
+.nh
+.SH NAME
+vtsd \- vtsd
+VTS HTTP delivery daemon
+.SH "SYNOPSIS"
+.PP
+.PP
+.nf
+vtsd [OPTIONS]
+Options:
+        [--help]
+        [--help-all]
+        [--help-location]
+        [--version|-v]
+        [--licence]
+        [--daemonize]
+        [--pidfile path]
+        [--ctrl path]
+        [--signal|-s action]
+        [--config|-f path]
+.fi
+.PP
+
+.SH "DESCRIPTION"
+.PP
+This program is a HTTP delivery daemon for VTS dataset (tilesets, storages and
+storage views)\&.
+.PP
+
+.SH "OPTIONS"
+.PP
+.IP "\fB--help\fP"
+Displays help for command line options\&.
+.IP "\fB--help-all\fP"
+Displays help for both command line and configuration file options\&.
+.IP "\fB--help-location\fP"
+Displays help for configuration file location format\&.
+.IP "\fB--version|v\fP"
+Reports the vtsd binary version\&.
+.IP "\fB--licence\fP"
+Reports the licence agreement\&.
+.IP "\fB--daemonize\fP"
+Run as a daemon\&. Otherwise runs in foreground\&.
+.IP "\fB--pidfile \fIpath\fP"
+Path to pidfile\&. Pidfile support is not enabled unless pidfile path is
+specified\&.
+.IP "\fB--ctlr \fIpath\fP"
+Path to control socket\&. Used to comminicate with running daemon\&.
+.IP "\fB--config|-f \fIpath\fP"
+Path to configuration file\&. Can be specified multiple times\&. First option
+occurence wins\&. All configuration options can be overriden on the command
+line\&.
+.PP
+
+.SH "EXAMPLE"
+
+Configuration file example\&. Everything under / is handler as a VTS dataset
+except for path match regex for stylesheets\&.
+
+.nf
+[service]
+# run under www-data:www-data persona
+# must be run uder root to take effect
+user = www-data
+group = www-data
+
+[log]
+file = /opt/vts/log/vtsd-local.log
+
+[http]
+# listen at given interface:port
+# interface can be either IPv4 address, [IPv6 address] or an interface aname
+listen = :9060
+
+# configuration for everything under /
+[location</>]
+# brosing and directory listing enabeld (off by default)
+browser = true
+listing = true
+# root, like in nginx
+root = /mnt/data
+
+# except for stylesheets
+[location<^/.*/stylesheet/>]
+# match location above as a regular expression
+match = regex
+# serve as plain files
+dataset = false
+# root, like in nginx
+root = /mnt/data
+# cache stylesheets only for 1 hour
+max-age.data = 3600
+
+.PP

@@ -1,3 +1,10 @@
+ctt-vts-seznamcz-vtsd (1.1) citationtech-wheezy-seznamcz; urgency=low
+
+  * Added sample init script.
+  * Added documentation.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Thu, 24 Nov 2016 10:52:49 +0100
+
 ctt-vts-seznamcz-vtsd (1.0) citationtech-wheezy-seznamcz; urgency=low
 
   * Initial release
