@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.9) citationtech-wheezy; urgency=low
+
+  * Support for better metatile in tilar aggregation
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 07 Dec 2016 17:18:43 +0100
+
 ctt-vts-vtsd (0.8) citationtech-wheezy; urgency=low
 
   * Fixed aggregated tilesets.
