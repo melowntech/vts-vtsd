@@ -1,3 +1,9 @@
+ctt-vts-seznamcz-vtsd (1.2) citationtech-wheezy-seznamcz; urgency=low
+
+  * Fixed aggregated driver.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 07 Dec 2016 14:35:38 +0100
+
 ctt-vts-seznamcz-vtsd (1.1) citationtech-wheezy-seznamcz; urgency=low
 
   * Added sample init script.
