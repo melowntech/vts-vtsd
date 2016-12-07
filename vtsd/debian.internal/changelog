@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.8) citationtech-wheezy; urgency=low
+
+  * Fixed aggregated tilesets.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 07 Dec 2016 14:48:46 +0100
+
 ctt-vts-vtsd (0.7) citationtech-wheezy; urgency=low
 
   * Added virtual surface support.
