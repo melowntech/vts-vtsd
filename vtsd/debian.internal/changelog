@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.10) citationtech-wheezy; urgency=low
+
+  * Fixed aggregated driver (metatile generation)
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 22 Feb 2017 13:01:06 +0100
+
 ctt-vts-vtsd (0.9) citationtech-wheezy; urgency=low
 
   * Support for better metatile in tilar aggregation
