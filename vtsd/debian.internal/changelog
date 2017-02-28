@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.11) citationtech-wheezy; urgency=low
+
+  * V4 metatile support.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Tue, 28 Feb 2017 11:59:43 +0100
+
 ctt-vts-vtsd (0.10) citationtech-wheezy; urgency=low
 
   * Fixed aggregated driver (metatile generation)
