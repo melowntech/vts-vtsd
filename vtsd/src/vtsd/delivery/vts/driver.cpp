@@ -15,9 +15,9 @@
 #include "./driver.hpp"
 
 namespace fs = boost::filesystem;
-namespace vts = vadstena::vts;
-namespace vs = vadstena::storage;
-namespace vr = vadstena::registry;
+namespace vts = vtslibs::vts;
+namespace vs = vtslibs::storage;
+namespace vr = vtslibs::registry;
 
 namespace {
 
@@ -36,7 +36,7 @@ struct VtsFileInfo : public FileInfo {
 
     /** tileId; valid only when (type == Type::tileFile)
      */
-    vadstena::vts::TileId tileId;
+    vtslibs::vts::TileId tileId;
 
     /** Sub tile file. Used for textures in atlas.
      */

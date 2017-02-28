@@ -11,8 +11,8 @@
 #include "./driver.hpp"
 
 namespace fs = boost::filesystem;
-namespace vts0 = vadstena::vts0;
-namespace vs = vadstena::storage;
+namespace vts0 = vtslibs::vts0;
+namespace vs = vtslibs::storage;
 
 namespace {
 
@@ -26,7 +26,7 @@ namespace constants {
 
 struct Vts0FileInfo : public FileInfo {
     // tileId, valid only when (type == Type::tileFile)
-    vadstena::vts0::TileId tileId;
+    vtslibs::vts0::TileId tileId;
 
     Vts0FileInfo(const std::string &path, const LocationConfig &config);
 };

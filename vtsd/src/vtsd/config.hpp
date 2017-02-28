@@ -12,7 +12,7 @@
 
 #include "./fileclass.hpp"
 
-namespace vs = vadstena::storage;
+namespace vs = vtslibs::storage;
 
 struct LocationConfig {
     typedef std::vector<LocationConfig> list;

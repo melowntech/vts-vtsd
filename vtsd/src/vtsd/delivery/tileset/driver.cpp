@@ -10,8 +10,8 @@
 #include "./driver.hpp"
 
 namespace fs = boost::filesystem;
-namespace ts = vadstena::tilestorage;
-namespace vs = vadstena::storage;
+namespace ts = vtslibs::tilestorage;
+namespace vs = vtslibs::storage;
 
 namespace {
 

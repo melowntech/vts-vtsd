@@ -19,7 +19,7 @@
 #include "./error.hpp"
 #include "./config.hpp"
 
-namespace vs = vadstena::storage;
+namespace vs = vtslibs::storage;
 
 /** Aborter helper.
  */

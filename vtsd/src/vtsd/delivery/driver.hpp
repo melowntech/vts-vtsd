@@ -12,7 +12,7 @@
 
 #include "../sink.hpp"
 
-namespace vs = vadstena::storage;
+namespace vs = vtslibs::storage;
 
 /** Can be thrown by handler to force redirect.
  */
