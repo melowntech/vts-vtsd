@@ -1,7 +1,7 @@
 # test program
 define_module(BINARY httpd
   DEPENDS
-  vts-libs-core http service
+  vts-libs-core>=2.0 http service
 
   Boost_SERIALIZATION
   Boost_FILESYSTEM
