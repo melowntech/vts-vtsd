@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.12) citationtech-wheezy; urgency=low
+
+  * Higher vts locking granularity.
+
+ -- Ladislav Horky <ladislav.horky@citationtech.net>  Mon, 03 Apr 2017 20:04:02 +0200
+
 ctt-vts-vtsd (0.11) citationtech-wheezy; urgency=low
 
   * V4 metatile support.
