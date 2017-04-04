@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.13) citationtech-wheezy; urgency=low
+
+  * aggegated tileset: updated lodRange format in tileset.conf
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Tue, 04 Apr 2017 13:30:13 +0200
+
 ctt-vts-vtsd (0.12) citationtech-wheezy; urgency=low
 
   * Higher vts locking granularity.
