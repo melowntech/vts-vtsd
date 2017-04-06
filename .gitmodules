@@ -21,7 +21,7 @@
 	url = ../../3rdparty/half
 [submodule "externals/jsoncpp"]
 	path = externals/jsoncpp
-	url = ../../3rdparty/jsoncpp
+	url = ../../lib/jsoncpp.git
 [submodule "externals/imgproc"]
 	path = externals/imgproc
 	url = ../../lib/imgproc

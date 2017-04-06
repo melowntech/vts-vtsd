@@ -1,5 +1,5 @@
-# test program
-define_module(BINARY httpd
+# vtsd - vts delivery daemon
+define_module(BINARY vtsd
   DEPENDS
   vts-libs-core>=2.0 http service
 
@@ -8,7 +8,7 @@ define_module(BINARY httpd
   Boost_PROGRAM_OPTIONS
   )
 
-set(httpd_SOURCES
+set(vtsd_SOURCES
   sink.hpp sink.cpp
   fileclass.hpp fileclass.cpp
   config.hpp config.cpp
@@ -22,7 +22,7 @@ set(httpd_SOURCES
   main.cpp
   )
 
-add_executable(vtsd ${httpd_SOURCES})
+add_executable(vtsd ${vtsd_SOURCES})
 target_link_libraries(vtsd ${MODULE_LIBRARIES})
 buildsys_target_compile_definitions(vtsd ${MODULE_DEFINITIONS})
 buildsys_binary(vtsd)
