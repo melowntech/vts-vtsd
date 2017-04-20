@@ -1,9 +1,9 @@
 # bootstrap build system
 cmake_minimum_required(VERSION 2.8.11)
+project(vts-vtsd)
+# by default, this is OSS build (can be overrided by customer machinery)
+set(BUILDSYS_DEFAULT_CUSTOMER_NAME oss)
 include(buildsys/cmake/buildsys.cmake)
-
-# project
-setup_project(vtsd "${BUILDSYS_PACKAGE_VERSION}")
 
 find_package(Boost 1.46 REQUIRED
   COMPONENTS thread program_options filesystem system date_time

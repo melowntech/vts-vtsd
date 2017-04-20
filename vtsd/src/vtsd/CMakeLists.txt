@@ -26,7 +26,7 @@ add_executable(vtsd ${vtsd_SOURCES})
 target_link_libraries(vtsd ${MODULE_LIBRARIES})
 buildsys_target_compile_definitions(vtsd ${MODULE_DEFINITIONS})
 buildsys_binary(vtsd)
-set_target_version(vtsd ${vtsd_VERSION})
+set_target_version(vtsd ${vts-vtsd_VERSION})
 
 # ------------------------------------------------------------------------
 # --- installation
