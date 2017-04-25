@@ -1,0 +1,5 @@
+vts-vtsd (1.0) melown-xenial; urgency=low
+
+  * Initial release for Ubuntu/Xenial
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Tue, 25 Apr 2017 17:48:02 +0200
