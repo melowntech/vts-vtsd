@@ -60,6 +60,8 @@ void LocationConfig::configuration(po::options_description &od
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");
+
+    openOptions.configuration(od, prefix + "open.");
 }
 
 void LocationConfig::configure(const po::variables_map &vars
@@ -87,14 +89,19 @@ void LocationConfig::configure(const po::variables_map &vars
     if (match == Match::regex) {
         regex = boost::in_place(location);
     }
+
+    openOptions.configure(vars, prefix + "open.");
 }
 
 std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
     const
 {
-    os << prefix << "browser = " << enableBrowser << "\n"
-       << prefix << "listing = " << enableListing << "\n"
-        ;
+    os << prefix << "dataset = " << enableDataset << "\n";
+    if (enableDataset) {
+        os << prefix << "browser = " << enableBrowser << "\n";
+    }
+
+    os << prefix << "listing = " << enableListing << "\n";
 
     if (!root.empty()) {
         os << prefix << "root = " << root << "\n";
@@ -108,11 +115,16 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         os << prefix << "alias = none\n";
     }
 
+    if (enableDataset) {
+        openOptions.dump(os, prefix + "open.");
+
+        for (const auto &var : vars) {
+            os << prefix << "variable " << var.first << " = "
+               << var.second << "\n";
+        }
+    }
+
     fileClassSettings.dump(os, prefix + "max-age.");
 
-    for (const auto &var : vars) {
-        os << prefix << "variable " << var.first << " = "
-           << var.second << "\n";
-    }
     return os;
 }

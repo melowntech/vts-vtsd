@@ -35,6 +35,7 @@
 #include "utility/enum-io.hpp"
 
 #include "vts-libs/storage/support.hpp"
+#include "vts-libs/vts/options.hpp"
 
 #include "./fileclass.hpp"
 
@@ -57,6 +58,7 @@ struct LocationConfig {
     FileClassSettings fileClassSettings;
     boost::filesystem::path root;
     boost::filesystem::path alias;
+    vtslibs::vts::OpenOptions openOptions;
 
     /** Valid only if match == Match::regex.
      */

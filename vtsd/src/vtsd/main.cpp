@@ -72,6 +72,10 @@ public:
         defaultConfig_.vars["VTS_BUILTIN_BROWSER_URL"]
             = "//cdn.melown.com/libs/melownjs/builtin/stable";
 
+        auto &oo(defaultConfig_.openOptions);
+        oo.ioRetries(0)
+            .ioWait(60*1000);
+
         // some file class defaults
         auto &fcs(defaultConfig_.fileClassSettings);
         fcs.setMaxAge(FileClass::config, 60);
