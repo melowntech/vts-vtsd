@@ -46,6 +46,7 @@
 #include "vts-libs/storage/fstreams.hpp"
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/registry/po.hpp"
+#include "vts-libs/vts/options.hpp"
 
 #include "./error.hpp"
 #include "./config.hpp"
@@ -72,8 +73,8 @@ public:
         defaultConfig_.vars["VTS_BUILTIN_BROWSER_URL"]
             = "//cdn.melown.com/libs/melownjs/builtin/stable";
 
-        auto &oo(defaultConfig_.openOptions);
-        oo.ioRetries(0)
+        openOptions_
+            .ioRetries(1)
             .ioWait(60*1000);
 
         // some file class defaults
@@ -145,6 +146,7 @@ private:
     utility::TcpEndpoint httpListen_;
     unsigned int httpThreadCount_;
 
+    vtslibs::vts::OpenOptions openOptions_;
     LocationConfig defaultConfig_;
     LocationConfig::list locations_;
     LocationConfig::list prefixLocations_;
@@ -169,6 +171,8 @@ void Daemon::configuration(po::options_description &cmdline
          ->default_value(httpThreadCount_)->required()
          , "Number of server HTTP threads.")
         ;
+
+    openOptions_.configuration(config, "open.");
 
     (void) cmdline;
     (void) pd;
@@ -234,6 +238,8 @@ void Daemon::configure(const po::variables_map &vars)
         location.configure(vars, "location<" + location.location + ">.");
     }
 
+    openOptions_.configure(vars, "open.");
+
     // sort locations:
     {
         // grab prefix locations
@@ -263,6 +269,7 @@ void Daemon::configure(const po::variables_map &vars)
         << "Config:"
         << "\n\thttp.listen = " << httpListen_
         << "\n\thttp.threadCount = " << httpThreadCount_
+        << '\n' << utility::dump(openOptions_, "\topen.")
         << utility::LManip([&](std::ostream &os) {
                 for (const auto &location : prefixLocations_) {
                     os << "\n\tlocation <" << location.location << ">:\n";
@@ -372,7 +379,7 @@ void sendListing(const fs::path &path, Sink &sink
 bool Daemon::tryOpen(const fs::path &filePath)
 {
     try {
-        deliveryCache_->get(filePath.string());
+        deliveryCache_->get(filePath.string(), openOptions_);
     } catch (...) {
         // could not open dataset
         return false;
@@ -433,7 +440,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
     auto file(filePath.filename());
 
     try {
-        deliveryCache_->get(parent.string())
+        deliveryCache_->get(parent.string(), openOptions_)
             ->handle(sink, file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {

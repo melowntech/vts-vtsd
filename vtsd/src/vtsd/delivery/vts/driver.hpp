@@ -29,6 +29,7 @@
 
 #include "../driver.hpp"
 
-DriverWrapper::pointer openVts(const std::string &path);
+DriverWrapper::pointer openVts(const std::string &path
+                               , const vtslibs::vts::OpenOptions &openOptions);
 
 #endif // libvtslibs_http_vts_driver_hpp_included_

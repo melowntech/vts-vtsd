@@ -58,7 +58,6 @@ struct LocationConfig {
     FileClassSettings fileClassSettings;
     boost::filesystem::path root;
     boost::filesystem::path alias;
-    vtslibs::vts::OpenOptions openOptions;
 
     /** Valid only if match == Match::regex.
      */

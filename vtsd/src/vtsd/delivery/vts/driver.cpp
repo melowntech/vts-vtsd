@@ -262,8 +262,9 @@ struct Definition {
 class VtsTileSet : public DriverWrapper
 {
 public:
-    VtsTileSet(const std::string &path)
-        : delivery_(vts::Delivery::open(path))
+    VtsTileSet(const std::string &path
+               , const vtslibs::vts::OpenOptions &openOptions)
+        : delivery_(vts::Delivery::open(path, openOptions))
         , mapConfig_(*delivery_)
         , definition_(*delivery_, mapConfig_.referenceFrameId)
     {}
@@ -666,11 +667,12 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openVts(const std::string &path)
+DriverWrapper::pointer openVts(const std::string &path
+                               , const vtslibs::vts::OpenOptions &openOptions)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:
-        return std::make_shared<VtsTileSet>(path);
+        return std::make_shared<VtsTileSet>(path, openOptions);
 
     case vts::DatasetType::Storage:
         return std::make_shared<VtsStorage>(vts::openStorage(path));

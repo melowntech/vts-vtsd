@@ -53,10 +53,10 @@ DeliveryCache::DeliveryCache()
 }
 
 DriverWrapper::pointer DeliveryCache::openDriver
-(const std::string &path) const
+(const std::string &path, const vtslibs::vts::OpenOptions &openOptions) const
 {
     // try VTS
-    try { return openVts(path); } catch (vs::NoSuchTileSet) {}
+    try { return openVts(path, openOptions); } catch (vs::NoSuchTileSet) {}
 
     // try VTS0
     try { return openVts0(path); } catch (vs::NoSuchTileSet) {}
@@ -65,7 +65,9 @@ DriverWrapper::pointer DeliveryCache::openDriver
     return openTileSet(path);
 }
 
-DriverWrapper::pointer DeliveryCache::get(const std::string &path)
+DriverWrapper::pointer
+DeliveryCache::get(const std::string &path
+                   , const vtslibs::vts::OpenOptions &openOptions)
 {
     LOG(info1) << "Getting driver for tileset at: \"" << path << "\".";
 
@@ -93,7 +95,7 @@ DriverWrapper::pointer DeliveryCache::get(const std::string &path)
     }
 
     // open driver
-    auto driver(openDriver(path));
+    auto driver(openDriver(path, openOptions));
 
     if (replace) {
         // replace existing driver (it doesn't contribute to the key)

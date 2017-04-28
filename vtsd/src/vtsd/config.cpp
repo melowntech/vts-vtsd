@@ -60,8 +60,6 @@ void LocationConfig::configuration(po::options_description &od
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");
-
-    openOptions.configuration(od, prefix + "open.");
 }
 
 void LocationConfig::configure(const po::variables_map &vars
@@ -89,8 +87,6 @@ void LocationConfig::configure(const po::variables_map &vars
     if (match == Match::regex) {
         regex = boost::in_place(location);
     }
-
-    openOptions.configure(vars, prefix + "open.");
 }
 
 std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
@@ -116,8 +112,6 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
     }
 
     if (enableDataset) {
-        openOptions.dump(os, prefix + "open.");
-
         for (const auto &var : vars) {
             os << prefix << "variable " << var.first << " = "
                << var.second << "\n";

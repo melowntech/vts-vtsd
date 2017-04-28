@@ -37,13 +37,16 @@
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/composite_key.hpp>
 
+#include "vts-libs/vts/options.hpp"
+
 #include "./driver.hpp"
 
 class DeliveryCache : boost::noncopyable {
 public:
     DeliveryCache();
 
-    DriverWrapper::pointer get(const std::string &path);
+    DriverWrapper::pointer get(const std::string &path
+                               , const vtslibs::vts::OpenOptions &openOptions);
 
     void cleanup();
 
@@ -52,8 +55,9 @@ public:
     void flush(std::unique_lock<std::mutex>&);
 
 private:
-    DriverWrapper::pointer openDriver(const std::string &path)
-        const;
+    DriverWrapper::pointer
+    openDriver(const std::string &path
+               , const vtslibs::vts::OpenOptions &openOptions) const;
 
     std::mutex mutex_;
     typedef DriverWrapper::pointer Driver;
