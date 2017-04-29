@@ -1,3 +1,10 @@
+ctt-vts-vtsd (0.15) citationtech-wheezy; urgency=low
+
+  * Fixed aggregated driver (no failure on invalid nodes).
+  * Configurable remote driver (# of retries, wait time).
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Sat, 29 Apr 2017 07:23:56 +0200
+
 ctt-vts-vtsd (0.14) citationtech-wheezy; urgency=low
 
   * Fixed pending glue handling in mapconfig generation.
