@@ -1,7 +1,7 @@
 # vtsd - vts delivery daemon
 define_module(BINARY vtsd
   DEPENDS
-  vts-libs-core>=2.0 http service
+  vts-libs-core>=2.4 http service
 
   Boost_SERIALIZATION
   Boost_FILESYSTEM
