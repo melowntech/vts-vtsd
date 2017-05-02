@@ -1,3 +1,5 @@
 *.deb
 *.changes
 *.upload
+*.*~
+.*.sw*
