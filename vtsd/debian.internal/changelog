@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.17) citationtech-wheezy; urgency=low
+
+  * New built-in browser.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 31 May 2017 14:13:19 +0200
+
 ctt-vts-vtsd (0.16) citationtech-wheezy; urgency=low
 
   * Using new JsonCPP I/O interface.
