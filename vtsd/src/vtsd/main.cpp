@@ -47,6 +47,7 @@
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/registry/po.hpp"
 #include "vts-libs/vts/options.hpp"
+#include "vts-libs/vts/support.hpp"
 
 #include "./error.hpp"
 #include "./config.hpp"
@@ -57,6 +58,7 @@ namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
 
 namespace vr = vtslibs::registry;
+namespace vts = vtslibs::vts;
 
 class Daemon
     : public service::Service
@@ -70,8 +72,7 @@ public:
         , httpListen_(3060)
         , httpThreadCount_(boost::thread::hardware_concurrency())
     {
-        defaultConfig_.vars["VTS_BUILTIN_BROWSER_URL"]
-            = "//cdn.melown.com/libs/melownjs/builtin/stable";
+        defaultConfig_.vars = vts::defaultSupportVars;
 
         openOptions_
             .ioRetries(1)
