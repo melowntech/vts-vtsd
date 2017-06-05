@@ -535,8 +535,6 @@ void Daemon::handleRegex(const LocationConfig &location
     // TODO: check for "./" and "../"!
     const fs::path filePath(m.format(location.alias.string()
                                      , boost::format_no_copy));
-    LOG(info4) << "location.alias: " << location.alias;
-    LOG(info4) << "filePath: " << filePath;
 
     handle(filePath, request, sink, location);
 }
