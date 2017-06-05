@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.18) citationtech-wheezy; urgency=low
+
+  * dirs.json contains directories for virtual surfaces
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Mon, 05 Jun 2017 18:48:23 +0200
+
 ctt-vts-vtsd (0.17) citationtech-wheezy; urgency=low
 
   * New built-in browser.
