@@ -410,7 +410,7 @@ void Daemon::handlePlain(const fs::path &filePath, const http::Request&
             auto file(filePath.filename());
             if (file != ".") {
                 // directory redirect
-                sink.seeOther(file.string() + "/");
+                sink.redirect(file.string() + "/", utility::HttpCode::Found);
                 return;
             }
 
@@ -453,7 +453,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
         if (is_directory(status(filePath))) {
             if (file != ".") {
                 // directory redirect
-                sink.seeOther(file.string() + "/");
+                sink.redirect(file.string() + "/", utility::HttpCode::Found);
                 return;
             }
 
@@ -468,7 +468,8 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
             return sink.error(utility::makeError<Forbidden>("Unlistable"));
         } else if (tryOpen(filePath)) {
             // non-directory dataset -> treat as a directory -> redirect
-            return sink.seeOther(file.string() + "/");
+            return sink.redirect(file.string() + "/"
+                                 , utility::HttpCode::Found);
         }
 
         // not found
