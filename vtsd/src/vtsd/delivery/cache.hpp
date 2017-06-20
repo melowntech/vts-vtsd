@@ -28,7 +28,11 @@
 #define httpd_delivery_cache_hpp_included_
 
 #include <ctime>
+#include <memory>
+#include <functional>
+#include <vector>
 #include <mutex>
+#include <thread>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -37,97 +41,77 @@
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/composite_key.hpp>
 
+#include "utility/expected.hpp"
+#include "utility/filesystem.hpp"
+
 #include "vts-libs/vts/options.hpp"
 
 #include "./driver.hpp"
 
 class DeliveryCache : boost::noncopyable {
 public:
-    DeliveryCache();
+    DeliveryCache(unsigned int threadCount);
+    ~DeliveryCache();
 
+    typedef utility::Expected<DriverWrapper::pointer> Expected;
+    typedef std::function<void(const Expected&)> Callback;
+
+    typedef std::vector<Callback> CallbackList;
+
+    /** Calls callback with driver for given path. Call is immediated if driver
+     *  is already open or postponed when driver is available.
+     */
+    void get(const std::string &path
+             , const vtslibs::vts::OpenOptions &openOptions
+             , const Callback &callback);
+
+    /** Returns driver for given path. Blocking call.
+     */
     DriverWrapper::pointer get(const std::string &path
                                , const vtslibs::vts::OpenOptions &openOptions);
 
-    void cleanup();
-
-    void cleanup(std::unique_lock<std::mutex>&);
-
-    void flush(std::unique_lock<std::mutex>&);
-
 private:
-    DriverWrapper::pointer
-    openDriver(const std::string &path
-               , const vtslibs::vts::OpenOptions &openOptions) const;
+    void maintenance();
+
+    void check(std::time_t now);
 
     std::mutex mutex_;
+    std::atomic<bool> running_;
+    std::thread maintenance_;
+
     typedef DriverWrapper::pointer Driver;
 
     struct Record {
-        Record(const std::string &path, const Driver &driver
-               , vs::Resources &totalResources)
-            : path(path), flags(0) // TODO: remove flags
-            , driver(driver), lastHit(std::time(nullptr)), hits(1)
-            , resources(driver->resources())
-            , totalResources(totalResources)
-        {
-            totalResources += resources;
+        Record(const std::string &path)
+            : path(path), lastHit(std::time(nullptr))
+        {}
+
+        ~Record() {}
+
+        void update(std::time_t now) {
+            lastHit = now;
         }
 
-        ~Record() { totalResources -= resources; }
-
-        void update() {
-            lastHit = std::time(nullptr);
-            ++hits;
-            // update resources
-            totalResources -= resources;
-            resources = driver->resources();
-            totalResources += resources;
-        }
-
-        decltype(vs::Resources::openFiles) openFiles() const {
-            return resources.openFiles;
-        }
-
+        // path to dataset
         std::string path;
-        int flags;
-        mutable Driver driver;
+        // pointer to driver
+        Driver driver;
+        // callbacks waiting for driver to be opened
+        CallbackList openCallbacks;
+
+        // time of last cache hit
         std::time_t lastHit;
-        std::size_t hits;
-        vs::Resources resources;
-        vs::Resources &totalResources;
     };
 
-    struct PathIdx {};
-    struct ResourcesIdx {};
-
-    // Resources are sorted in descending order => this helps to kill the
-    // greatest resource usurpers first.
-    typedef boost::multi_index_container<
-        Record
-        , boost::multi_index::indexed_by<
-              boost::multi_index::ordered_unique<
-                  boost::multi_index::tag<PathIdx>
-                  , boost::multi_index::composite_key
-                  <Record
-                   , BOOST_MULTI_INDEX_MEMBER
-                   (Record, decltype(Record::path), path)
-                   , BOOST_MULTI_INDEX_MEMBER
-                   (Record, decltype(Record::flags), flags)>
-                  >
-              , boost::multi_index::ordered_non_unique
-              <boost::multi_index::tag<ResourcesIdx>
-               , BOOST_MULTI_INDEX_MEMBER
-               (Record, decltype(Record::resources), resources)
-               , std::greater<decltype(Record::resources)> >
-              >
-        > Drivers;
+    typedef std::map<utility::FileId, Record> Drivers;
 
     Drivers drivers_;
 
     vs::Resources totalResources_;
     vs::Resources cleanupLimit_;
 
-    std::time_t nextFlush_;
+    class Workers;
+    std::unique_ptr<Workers> workers_;
 };
 
 #endif // httpd_delivery_cache_hpp_included_

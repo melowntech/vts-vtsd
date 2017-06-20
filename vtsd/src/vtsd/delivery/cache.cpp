@@ -24,6 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <boost/asio.hpp>
+
 #include "utility/rlimit.hpp"
 
 #include "vts-libs/storage/error.hpp"
@@ -34,26 +36,97 @@
 #include "./tileset/driver.hpp"
 #include "./vts0/driver.hpp"
 
+namespace asio = boost::asio;
+
 /** Time between flushes.
  */
-constexpr std::time_t FLUSH_INTERVAL(60);
+constexpr std::time_t CHECK_INTERVAL(60);
 
 /** Maximal time between hits in cache for single record.
  */
 constexpr std::time_t MAX_INTERVAL_BETWEEN_HITS(600);
 
-DeliveryCache::DeliveryCache()
-    : nextFlush_(std::time(nullptr) + FLUSH_INTERVAL)
-{
-    cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
-    cleanupLimit_.memory
-        = std::numeric_limits<decltype(cleanupLimit_.memory)>::max();
+typedef std::unique_lock<std::mutex> UniqueLock;
 
-    LOG(info3) << "Cleanup limits: " << cleanupLimit_ << ".";
+class DeliveryCache::Workers : boost::noncopyable {
+public:
+    Workers(unsigned int threadCount, std::mutex &mutex, Drivers &drivers)
+        : work_(ios_), mutex_(mutex), drivers_(drivers)
+    {
+        start(threadCount);
+    }
+
+    ~Workers() { stop(); }
+
+    void open(Drivers::iterator &irecord
+              , const vtslibs::vts::OpenOptions &openOptions);
+
+private:
+    void start(std::size_t count);
+    void stop();
+    void worker(std::size_t id);
+    // void post(const Generator::Task &task, Sink sink);
+
+    asio::io_service ios_;
+
+    /** Processing pool stuff.
+     */
+    asio::io_service::work work_;
+    std::vector<std::thread> workers_;
+
+    // cache
+    std::mutex &mutex_;
+    Drivers drivers_;
+};
+
+void DeliveryCache::Workers::start(std::size_t count)
+{
+    // make sure threads are released when something goes wrong
+    struct Guard {
+        Guard(const std::function<void()> &func) : func(func) {}
+        ~Guard() { if (func) { func(); } }
+        void release() { func = {}; }
+        std::function<void()> func;
+    } guard([this]() { stop(); });
+
+    for (std::size_t id(1); id <= count; ++id) {
+        workers_.emplace_back(&Workers::worker, this, id);
+    }
+
+    guard.release();
 }
 
-DriverWrapper::pointer DeliveryCache::openDriver
-(const std::string &path, const vtslibs::vts::OpenOptions &openOptions) const
+void DeliveryCache::Workers::stop()
+{
+    LOG(info2) << "Stopping delivery cache workers.";
+    ios_.stop();
+
+    while (!workers_.empty()) {
+        workers_.back().join();
+        workers_.pop_back();
+    }
+}
+
+void DeliveryCache::Workers::worker(std::size_t id)
+{
+    dbglog::thread_id(str(boost::format("cache:%u") % id));
+    LOG(info2) << "Spawned cache worker id:" << id << ".";
+
+    for (;;) {
+        try {
+            ios_.run();
+            LOG(info2) << "Terminated cache worker id:" << id << ".";
+            return;
+        } catch (const std::exception &e) {
+            LOG(err3)
+                << "Uncaught exception in cache worker: <" << e.what()
+                << ">. Going on.";
+        }
+    }
+}
+
+DriverWrapper::pointer openDriver
+(const std::string &path, const vtslibs::vts::OpenOptions &openOptions)
 {
     // try VTS
     try { return openVts(path, openOptions); } catch (vs::NoSuchTileSet) {}
@@ -65,110 +138,155 @@ DriverWrapper::pointer DeliveryCache::openDriver
     return openTileSet(path);
 }
 
+void DeliveryCache::Workers
+::open(Drivers::iterator &idrivers
+       , const vtslibs::vts::OpenOptions &openOptions)
+{
+    ios_.post([this, idrivers, &openOptions]() mutable
+    {
+        const auto dispatch([this](CallbackList &callbacks
+                                   , const Expected &value)
+        {
+            for (const auto &callback : callbacks) {
+                // dispatch in thread pool
+                LOG(info4) << "Dispatching open driver callback.";
+                ios_.post([callback, value]() { callback(value); });
+            }
+        });
+
+        try {
+            // open driver
+            auto &record(idrivers->second);
+            auto driver(openDriver(record.path, openOptions));
+
+            // driver open -> store in the record
+            CallbackList callbacks;
+            {
+                std::unique_lock<std::mutex> guard(mutex_);
+                // store driver and steal callbacks
+                record.driver = driver;
+                std::swap(callbacks, record.openCallbacks);
+            }
+
+            // dispatch to callbacks (unlocked)
+            dispatch(callbacks, driver);
+        } catch (...) {
+            // open failed
+
+            CallbackList callbacks;
+            {
+                std::unique_lock<std::mutex> guard(mutex_);
+                // steal callbacks
+                std::swap(callbacks, idrivers->second.openCallbacks);
+
+                // kill driver record
+                drivers_.erase(idrivers);
+            }
+
+            // dispatch exception to interested parties
+            dispatch(callbacks, std::current_exception());
+        }
+    });
+}
+
+DeliveryCache::DeliveryCache(unsigned int threadCount)
+    : running_(true), workers_(new Workers(threadCount, mutex_, drivers_))
+{
+    cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
+    cleanupLimit_.memory
+        = std::numeric_limits<decltype(cleanupLimit_.memory)>::max();
+
+    LOG(info3) << "Cleanup limits: " << cleanupLimit_ << ".";
+
+    maintenance_ = std::thread(std::bind(&DeliveryCache::maintenance, this));
+}
+
+DeliveryCache::~DeliveryCache()
+{
+    running_ = false;
+    maintenance_.join();
+}
+
+void DeliveryCache::get(const std::string &path
+                        , const vtslibs::vts::OpenOptions &openOptions
+                        , const Callback &callback)
+{
+    const auto fid(utility::FileId::from(path));
+
+    std::unique_lock<std::mutex> guard(mutex_);
+
+    auto fdrivers(drivers_.find(fid));
+
+    if (fdrivers != drivers_.end()) {
+        // record found
+        auto &record(fdrivers->second);
+
+        if (record.driver) {
+            // valid record, grab driver
+            const auto driver(record.driver);
+
+            // unlock and call callback
+            guard.unlock();
+            callback(driver);
+            return;
+        }
+
+        // pending open
+        record.openCallbacks.push_back(callback);
+        return;
+    }
+
+    // create new entry and grab reference to it
+    auto idrivers(drivers_.insert(Drivers::value_type(fid, Record(path)))
+                  .first);
+
+    idrivers->second.openCallbacks.push_back(callback);
+
+    workers_->open(idrivers, openOptions);
+}
+
 DriverWrapper::pointer
 DeliveryCache::get(const std::string &path
                    , const vtslibs::vts::OpenOptions &openOptions)
 {
     LOG(info1) << "Getting driver for tileset at: \"" << path << "\".";
 
-    std::unique_lock<std::mutex> guard(mutex_);
-
-    // clean resource hoggers and flush changed tile sets
-    cleanup(guard);
-    flush(guard);
-
-    // TODO: use just path when updated
-    auto fdrivers(drivers_.find(boost::make_tuple(path, 0)));
-
-    bool replace(false);
-
-    if (fdrivers != drivers_.end()) {
-        auto driver(fdrivers->driver);
-        replace = (driver->hotContent() && driver->externallyChanged());
-
-        if (!replace) {
-            // modify record
-            // TODO: what if this fails (can it fail???)
-            drivers_.modify(fdrivers, [](Record &r) { r.update(); });
-            return fdrivers->driver;
-        }
-    }
-
-    // open driver
-    auto driver(openDriver(path, openOptions));
-
-    if (replace) {
-        // replace existing driver (it doesn't contribute to the key)
-        fdrivers->driver = driver;
-    } else {
-        // cache new record
-        drivers_.insert(Record(path, driver, totalResources_));
-    }
-
-    // done
-    return driver;
-}
-
-void DeliveryCache::cleanup()
-{
-    std::unique_lock<std::mutex> guard(mutex_);
-    cleanup(guard);
-    flush(guard);
-}
-
-void DeliveryCache::cleanup(std::unique_lock<std::mutex>&)
-{
-    if (totalResources_ < cleanupLimit_) { return; }
-
-    LOG(info2) << "Resource limit reached (total: " << totalResources_
-               << " >= limit " << cleanupLimit_ << ".";
-
-    auto &idx(drivers_.get<ResourcesIdx>());
-
-    for (auto iidx(idx.begin());
-         (totalResources_ < cleanupLimit_) && (iidx != idx.end()); )
+    std::promise<DriverWrapper::pointer> promise;
+    get(path, openOptions, [&](const Expected &driver)
     {
-        const auto &r(*iidx);
-        LOG(info1) << "Removing cached tileset <" << r.path << "> "
-                   << "with resources " << r.resources << ".";
-        iidx = idx.erase(iidx);
-    }
+        try {
+            promise.set_value(driver.get());
+        } catch (...) {
+            promise.set_exception(std::current_exception());
+        }
+    });
+
+    return promise.get_future().get();
 }
 
-void DeliveryCache::flush(std::unique_lock<std::mutex>&)
+void DeliveryCache::maintenance()
 {
-    const auto now(std::time(nullptr));
-    if (nextFlush_ > now) { return; }
+    dbglog::thread_id("cache");
 
-    const auto killHit(now - MAX_INTERVAL_BETWEEN_HITS);
+    const auto nextCheck(std::time(nullptr) + CHECK_INTERVAL);
 
-    for (auto iidx(drivers_.begin()); (iidx != drivers_.end()); ) {
-        const auto &r(*iidx);
-        // initialize remove flag based on the last hit
-        bool remove(r.lastHit < killHit);
-        if (!remove) {
-            try {
-                remove = r.driver->externallyChanged();
-            } catch (const std::exception &e) {
-                LOG(warn2) << "External change test failed: " << e.what()
-                           << "; removing driver.";
-                remove = true;
-            } catch (...) {
-                LOG(warn2)
-                    << "External change test failed (unknown error);"
-                    << " removing driver.";
-                remove = true;
-            }
+    while (running_) {
+        try {
+            LOG(info4) << "Maintenance";
+            // sleep(CHECK_INTERVAL);
+            const auto now(std::time(nullptr));
+            if (now >= nextCheck) { check(now); }
+            ::sleep(1);
+        } catch (const std::exception &e) {
+            LOG(warn2) << "Cache maintenance: unexpected exception: <"
+                       << e.what() << ">; going on.";
         }
+    };
 
-        if (remove) {
-            LOG(info1) << "Removing cached tileset <" << r.path << "> "
-                       << " that has been externally changed or timed out.";
-            iidx = drivers_.erase(iidx);
-        } else {
-            ++iidx;
-        }
-    }
+    LOG(info3) << "Maintenance thread terminating";
+}
 
-    nextFlush_ = now + FLUSH_INTERVAL;
+void DeliveryCache::check(std::time_t now)
+{
+    (void) now;
 }

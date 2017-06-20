@@ -71,6 +71,7 @@ public:
                            | service::ENABLE_UNRECOGNIZED_OPTIONS)
         , httpListen_(3060)
         , httpThreadCount_(boost::thread::hardware_concurrency())
+        , coreThreadCount_(boost::thread::hardware_concurrency())
     {
         defaultConfig_.vars = vts::defaultSupportVars;
 
@@ -146,6 +147,7 @@ private:
 
     utility::TcpEndpoint httpListen_;
     unsigned int httpThreadCount_;
+    unsigned int coreThreadCount_;
 
     vtslibs::vts::OpenOptions openOptions_;
     LocationConfig defaultConfig_;
@@ -171,6 +173,9 @@ void Daemon::configuration(po::options_description &cmdline
         ("http.threadCount", po::value(&httpThreadCount_)
          ->default_value(httpThreadCount_)->required()
          , "Number of server HTTP threads.")
+        ("core.threadCount", po::value(&coreThreadCount_)
+         ->default_value(coreThreadCount_)->required()
+         , "Number of server core threads.")
         ;
 
     openOptions_.configuration(config, "open.");
@@ -324,7 +329,7 @@ service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
-    deliveryCache_ = boost::in_place();
+    deliveryCache_ = boost::in_place(coreThreadCount_);
 
     http_ = boost::in_place();
     http_->serverHeader(utility::format
