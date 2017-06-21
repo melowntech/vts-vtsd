@@ -48,70 +48,27 @@
 
 class DeliveryCache : boost::noncopyable {
 public:
-    DeliveryCache(unsigned int threadCount);
+    DeliveryCache(unsigned int threadCount
+                  , const vtslibs::vts::OpenOptions &openOptions);
     ~DeliveryCache();
 
     typedef utility::Expected<DriverWrapper::pointer> Expected;
     typedef std::function<void(const Expected&)> Callback;
-
     typedef std::vector<Callback> CallbackList;
+    typedef DriverWrapper::pointer Driver;
 
     /** Calls callback with driver for given path. Call is immediated if driver
      *  is already open or postponed when driver is available.
      */
-    void get(const std::string &path
-             , const vtslibs::vts::OpenOptions &openOptions
-             , const Callback &callback);
+    void get(const std::string &path, const Callback &callback);
 
     /** Returns driver for given path. Blocking call.
      */
-    DriverWrapper::pointer get(const std::string &path
-                               , const vtslibs::vts::OpenOptions &openOptions);
+    Driver get(const std::string &path);
 
 private:
-    typedef DriverWrapper::pointer Driver;
-
-    struct Record {
-        Record(const std::string &path)
-            : path(path), lastHit(std::time(nullptr))
-        {}
-
-        ~Record() {}
-
-        void update(std::time_t now) {
-            lastHit = now;
-        }
-
-        // path to dataset
-        std::string path;
-        // pointer to driver
-        Driver driver;
-        // callbacks waiting for driver to be opened
-        CallbackList openCallbacks;
-
-        // time of last cache hit
-        std::time_t lastHit;
-    };
-
-    typedef std::map<utility::FileId, Record> Drivers;
-
-    /** Internal implementation. Held lock is unlocked on exit.
-     */
-    void get(std::unique_lock<std::mutex> &lock
-             , const std::string &path, const utility::FileId &fid
-             , Drivers::iterator idrivers
-             , const vtslibs::vts::OpenOptions &openOptions
-             , const Callback &callback);
-
-    std::mutex mutex_;
-
-    Drivers drivers_;
-
-    vs::Resources totalResources_;
-    vs::Resources cleanupLimit_;
-
-    class Workers;
-    std::unique_ptr<Workers> workers_;
+    class Detail;
+    std::unique_ptr<Detail> workers_;
 };
 
 #endif // httpd_delivery_cache_hpp_included_

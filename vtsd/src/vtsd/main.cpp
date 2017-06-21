@@ -329,7 +329,7 @@ service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
-    deliveryCache_ = boost::in_place(coreThreadCount_);
+    deliveryCache_ = boost::in_place(coreThreadCount_, openOptions_);
 
     http_ = boost::in_place();
     http_->serverHeader(utility::format
@@ -343,9 +343,9 @@ service::Service::Cleanup Daemon::start()
 
 void Daemon::cleanup()
 {
-    // destroy, in reverse order
-    http_ = boost::none;
+    // destroy delivery cache first
     deliveryCache_ = boost::none;
+    http_ = boost::none;
 }
 
 void Daemon::stat(std::ostream &os)
@@ -385,7 +385,7 @@ void sendListing(const fs::path &path, Sink &sink
 bool Daemon::tryOpen(const fs::path &filePath)
 {
     try {
-        deliveryCache_->get(filePath.string(), openOptions_);
+        deliveryCache_->get(filePath.string());
     } catch (...) {
         // could not open dataset
         return false;
@@ -446,7 +446,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
     auto file(filePath.filename());
 
     try {
-        deliveryCache_->get(parent.string(), openOptions_)
+        deliveryCache_->get(parent.string())
             ->handle(sink, file.string(), location);
     } catch (vs::NoSuchTileSet) {
         if (!exists(filePath)) {

@@ -434,11 +434,26 @@ public:
     virtual void handle(Sink sink, const std::string &path
                         , const LocationConfig &config);
 
+    static vts::Storage&
+    storageFromDriver(const DriverWrapper::pointer &driver);
+
 private:
     vts::Storage storage_;
 
     MapConfig mapConfig_;
 };
+
+vts::Storage&
+VtsStorage::storageFromDriver(const DriverWrapper::pointer &driver)
+{
+    if (auto d = dynamic_cast<VtsStorage*>(driver.get())) {
+        return d->storage_;
+    }
+    LOGTHROW(err1, vs::NoSuchTileSet)
+        << "Not a vts storage.";
+    throw;
+}
+
 
 void VtsStorage::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
@@ -479,8 +494,8 @@ void VtsStorage::handle(Sink sink, const std::string &path
 class VtsStorageView : public DriverWrapper
 {
 public:
-    VtsStorageView(vts::StorageView &&storageView)
-        : storageView_(std::move(storageView)), mapConfig_(storageView_)
+    VtsStorageView(vts::StorageView &storageView)
+        : storageView_(storageView), mapConfig_(storageView_)
     {}
 
     virtual vs::Resources resources() const {
@@ -623,15 +638,13 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
     case FileInfo::Type::tileFile:
         if (info.flavor == vts::FileFlavor::debug) {
             switch (info.tileFile) {
-            case vs::TileFile::meta:
-                {
-                    std::ostringstream os;
-                    vts::saveDebug
-                        (os, vts::getNodeDebugInfo(ti_, info.tileId));
-                    sink.content(os.str()
-                                        , fileinfo(debugStat_, FileClass::data));
-                }
-                return;
+            case vs::TileFile::meta: {
+                std::ostringstream os;
+                vts::saveDebug
+                    (os, vts::getNodeDebugInfo(ti_, info.tileId));
+                return sink.content
+                    (os.str(), fileinfo(debugStat_, FileClass::data));
+            }
 
             case vs::TileFile::mask:
                 return sink.content
@@ -665,10 +678,61 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
     sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 
+DriverWrapper::pointer
+openStorageView(const std::string &path
+                , DeliveryCache &cache
+                , const DeliveryCache::Callback &callback)
+{
+    struct StorageViewOpenCallback : vts::StorageViewOpenCallback {
+        StorageViewOpenCallback(DeliveryCache &cache
+                                , const DeliveryCache::Callback &callback)
+            : cache(cache), callback(callback)
+        {}
+
+        virtual void error(const std::exception_ptr &exc) {
+            callback(exc);
+        }
+
+        virtual void done(vts::StorageView &storageView) {
+            callback(DriverWrapper::pointer
+                     (std::make_shared<VtsStorageView>(storageView)));
+        }
+
+        virtual void openStorage(const boost::filesystem::path &path
+                                 , const vts::StorageOpenCallback::pointer
+                                 &storageOpenCallback)
+        {
+            cache.get(path.c_str()
+                      , [this, storageOpenCallback]
+                      (const DeliveryCache::Expected &value)
+            {
+                try {
+                    storageOpenCallback
+                        ->done(VtsStorage::storageFromDriver(value.get()));
+                } catch (...) {
+                    storageOpenCallback->error(std::current_exception());
+                }
+            });
+        }
+
+        DeliveryCache &cache;
+        const DeliveryCache::Callback callback;
+    };
+
+    // async open
+    vts::openStorageView(path, std::make_shared<StorageViewOpenCallback>
+                         (cache, callback));
+
+    // nothing available so far
+    return {};
+}
+
 } // namespace
 
 DriverWrapper::pointer openVts(const std::string &path
-                               , const vtslibs::vts::OpenOptions &openOptions)
+                               , const vtslibs::vts::OpenOptions &openOptions
+                               , DeliveryCache &cache
+                               , const DeliveryCache::Callback &callback)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:
@@ -678,8 +742,7 @@ DriverWrapper::pointer openVts(const std::string &path
         return std::make_shared<VtsStorage>(vts::openStorage(path));
 
     case vts::DatasetType::StorageView:
-        return std::make_shared<VtsStorageView>
-            (vts::openStorageView(path));
+        return openStorageView(path, cache, callback);
 
     case vts::DatasetType::TileIndex:
         return std::make_shared<VtsTileIndex>(path);

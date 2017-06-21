@@ -28,8 +28,11 @@
 #define libvtslibs_http_vts_driver_hpp_included_
 
 #include "../driver.hpp"
+#include "../cache.hpp"
 
 DriverWrapper::pointer openVts(const std::string &path
-                               , const vtslibs::vts::OpenOptions &openOptions);
+                               , const vtslibs::vts::OpenOptions &openOptions
+                               , DeliveryCache &cache
+                               , const DeliveryCache::Callback &callback);
 
 #endif // libvtslibs_http_vts_driver_hpp_included_
