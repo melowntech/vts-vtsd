@@ -24,7 +24,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <future>
+#include <mutex>
+#include <thread>
+
 #include <boost/asio.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/chrono/duration.hpp>
 
 #include "utility/rlimit.hpp"
 
@@ -37,35 +43,38 @@
 #include "./vts0/driver.hpp"
 
 namespace asio = boost::asio;
+namespace bs = boost::system;
 
 /** Time between flushes.
  */
-constexpr std::time_t CHECK_INTERVAL(60);
+// constexpr std::time_t CHECK_INTERVAL(60);
+constexpr std::time_t CHECK_INTERVAL(5);
 
 /** Maximal time between hits in cache for single record.
  */
 constexpr std::time_t MAX_INTERVAL_BETWEEN_HITS(600);
 
-typedef std::unique_lock<std::mutex> UniqueLock;
-
 class DeliveryCache::Workers : boost::noncopyable {
 public:
     Workers(unsigned int threadCount, std::mutex &mutex, Drivers &drivers)
-        : work_(ios_), mutex_(mutex), drivers_(drivers)
+        : work_(ios_), maintenanceTimer_(ios_)
+        , mutex_(mutex), drivers_(drivers)
     {
         start(threadCount);
     }
 
     ~Workers() { stop(); }
 
-    void open(Drivers::iterator &irecord
+    void open(Drivers::iterator &idrivers
               , const vtslibs::vts::OpenOptions &openOptions);
 
 private:
     void start(std::size_t count);
     void stop();
     void worker(std::size_t id);
-    // void post(const Generator::Task &task, Sink sink);
+    void startMaintenance();
+
+    void check();
 
     asio::io_service ios_;
 
@@ -73,10 +82,11 @@ private:
      */
     asio::io_service::work work_;
     std::vector<std::thread> workers_;
+    asio::steady_timer maintenanceTimer_;
 
     // cache
     std::mutex &mutex_;
-    Drivers drivers_;
+    Drivers &drivers_;
 };
 
 void DeliveryCache::Workers::start(std::size_t count)
@@ -94,6 +104,8 @@ void DeliveryCache::Workers::start(std::size_t count)
     }
 
     guard.release();
+
+    startMaintenance();
 }
 
 void DeliveryCache::Workers::stop()
@@ -125,6 +137,29 @@ void DeliveryCache::Workers::worker(std::size_t id)
     }
 }
 
+void DeliveryCache::Workers::startMaintenance()
+{
+    maintenanceTimer_.expires_from_now
+        (std::chrono::seconds(CHECK_INTERVAL));
+
+    maintenanceTimer_.async_wait([this](const bs::error_code &ec)
+    {
+        if (!ec) {
+            try {
+                // run check
+                check();
+            } catch (const std::exception &e) {
+                LOG(err3)
+                    << "Uncaught exception in maintenance: <" << e.what()
+                    << ">. Going on.";
+            }
+
+            // start maintenance again
+            startMaintenance();
+        };
+    });
+}
+
 DriverWrapper::pointer openDriver
 (const std::string &path, const vtslibs::vts::OpenOptions &openOptions)
 {
@@ -149,7 +184,6 @@ void DeliveryCache::Workers
         {
             for (const auto &callback : callbacks) {
                 // dispatch in thread pool
-                LOG(info4) << "Dispatching open driver callback.";
                 ios_.post([callback, value]() { callback(value); });
             }
         });
@@ -190,21 +224,52 @@ void DeliveryCache::Workers
 }
 
 DeliveryCache::DeliveryCache(unsigned int threadCount)
-    : running_(true), workers_(new Workers(threadCount, mutex_, drivers_))
+    : workers_(new Workers(threadCount, mutex_, drivers_))
 {
     cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
     cleanupLimit_.memory
         = std::numeric_limits<decltype(cleanupLimit_.memory)>::max();
 
     LOG(info3) << "Cleanup limits: " << cleanupLimit_ << ".";
-
-    maintenance_ = std::thread(std::bind(&DeliveryCache::maintenance, this));
 }
 
-DeliveryCache::~DeliveryCache()
+DeliveryCache::~DeliveryCache() {}
+
+void DeliveryCache::get(std::unique_lock<std::mutex> &lock
+                        , const std::string &path, const utility::FileId &fid
+                        , Drivers::iterator idrivers
+                        , const vtslibs::vts::OpenOptions &openOptions
+                        , const Callback &callback)
 {
-    running_ = false;
-    maintenance_.join();
+    if (idrivers != drivers_.end()) {
+        // record found
+        auto &record(idrivers->second);
+
+        if (record.driver) {
+            // valid record, grab driver
+            const auto driver(record.driver);
+
+            // unlock and call callback
+            lock.unlock();
+            callback(driver);
+            return;
+        }
+
+        // pending open
+        record.openCallbacks.push_back(callback);
+
+        // unlock
+        lock.unlock();
+        return;
+    }
+
+    // create new entry and grab reference to it
+    idrivers = drivers_.insert(Drivers::value_type(fid, Record(path))).first;
+    idrivers->second.openCallbacks.push_back(callback);
+
+    // call open unlocked
+    lock.unlock();
+    workers_->open(idrivers, openOptions);
 }
 
 void DeliveryCache::get(const std::string &path
@@ -214,79 +279,58 @@ void DeliveryCache::get(const std::string &path
     const auto fid(utility::FileId::from(path));
 
     std::unique_lock<std::mutex> guard(mutex_);
+    auto idrivers(drivers_.find(fid));
+    get(guard, path, fid, idrivers, openOptions, callback);
+}
 
-    auto fdrivers(drivers_.find(fid));
+namespace {
 
-    if (fdrivers != drivers_.end()) {
-        // record found
-        auto &record(fdrivers->second);
+template <typename T>
+class Promise {
+public:
+    Promise() = default;
+    Promise(const Promise &o) : p_(std::move(o.promise())) {}
 
-        if (record.driver) {
-            // valid record, grab driver
-            const auto driver(record.driver);
-
-            // unlock and call callback
-            guard.unlock();
-            callback(driver);
-            return;
-        }
-
-        // pending open
-        record.openCallbacks.push_back(callback);
-        return;
+    std::promise<T>& promise() const {
+        return const_cast<std::promise<T>&>(p_);
     }
 
-    // create new entry and grab reference to it
-    auto idrivers(drivers_.insert(Drivers::value_type(fid, Record(path)))
-                  .first);
+private:
+    std::promise<T> p_;
+};
 
-    idrivers->second.openCallbacks.push_back(callback);
-
-    workers_->open(idrivers, openOptions);
-}
+} // namespace
 
 DriverWrapper::pointer
 DeliveryCache::get(const std::string &path
                    , const vtslibs::vts::OpenOptions &openOptions)
 {
-    LOG(info1) << "Getting driver for tileset at: \"" << path << "\".";
 
-    std::promise<DriverWrapper::pointer> promise;
-    get(path, openOptions, [&](const Expected &driver)
+    const auto fid(utility::FileId::from(path));
+    std::unique_lock<std::mutex> guard(mutex_);
+    auto idrivers(drivers_.find(fid));
+
+    if ((idrivers != drivers_.end()) && idrivers->second.driver) {
+        // already available -> shortcut
+        return idrivers->second.driver;
+    }
+
+    // need to open or wait for a pending open
+    Promise<DriverWrapper::pointer> promise;
+    auto future(promise.promise().get_future());
+
+    get(guard, path, fid, idrivers, openOptions
+        , [promise](const Expected &driver)
     {
-        try {
-            promise.set_value(driver.get());
-        } catch (...) {
-            promise.set_exception(std::current_exception());
-        }
+        driver.get(promise.promise());
     });
 
-    return promise.get_future().get();
+    // wait without holding lock
+    auto value(future.get());
+    return value;
 }
 
-void DeliveryCache::maintenance()
+void DeliveryCache::Workers::check()
 {
-    dbglog::thread_id("cache");
-
-    const auto nextCheck(std::time(nullptr) + CHECK_INTERVAL);
-
-    while (running_) {
-        try {
-            LOG(info4) << "Maintenance";
-            // sleep(CHECK_INTERVAL);
-            const auto now(std::time(nullptr));
-            if (now >= nextCheck) { check(now); }
-            ::sleep(1);
-        } catch (const std::exception &e) {
-            LOG(warn2) << "Cache maintenance: unexpected exception: <"
-                       << e.what() << ">; going on.";
-        }
-    };
-
-    LOG(info3) << "Maintenance thread terminating";
-}
-
-void DeliveryCache::check(std::time_t now)
-{
-    (void) now;
+    LOG(info2) << "Maintenance check.";
 }

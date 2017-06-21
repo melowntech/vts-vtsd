@@ -31,8 +31,6 @@
 #include <memory>
 #include <functional>
 #include <vector>
-#include <mutex>
-#include <thread>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -71,14 +69,6 @@ public:
                                , const vtslibs::vts::OpenOptions &openOptions);
 
 private:
-    void maintenance();
-
-    void check(std::time_t now);
-
-    std::mutex mutex_;
-    std::atomic<bool> running_;
-    std::thread maintenance_;
-
     typedef DriverWrapper::pointer Driver;
 
     struct Record {
@@ -104,6 +94,16 @@ private:
     };
 
     typedef std::map<utility::FileId, Record> Drivers;
+
+    /** Internal implementation. Held lock is unlocked on exit.
+     */
+    void get(std::unique_lock<std::mutex> &lock
+             , const std::string &path, const utility::FileId &fid
+             , Drivers::iterator idrivers
+             , const vtslibs::vts::OpenOptions &openOptions
+             , const Callback &callback);
+
+    std::mutex mutex_;
 
     Drivers drivers_;
 
