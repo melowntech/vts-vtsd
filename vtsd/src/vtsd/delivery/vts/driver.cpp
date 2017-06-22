@@ -680,13 +680,14 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
 
 DriverWrapper::pointer
 openStorageView(const std::string &path
-                , DeliveryCache &cache
+                , DeliveryCache &cache, bool forcedReopen
                 , const DeliveryCache::Callback &callback)
 {
     struct StorageViewOpenCallback : vts::StorageViewOpenCallback {
         StorageViewOpenCallback(DeliveryCache &cache
-                                , const DeliveryCache::Callback &callback)
-            : cache(cache), callback(callback)
+                                , const DeliveryCache::Callback &callback
+                                , bool forcedReopen)
+            : cache(cache), callback(callback), forcedReopen(forcedReopen)
         {}
 
         virtual void error(const std::exception_ptr &exc) {
@@ -712,16 +713,17 @@ openStorageView(const std::string &path
                 } catch (...) {
                     storageOpenCallback->error(std::current_exception());
                 }
-            });
+            }, forcedReopen);
         }
 
         DeliveryCache &cache;
         const DeliveryCache::Callback callback;
+        bool forcedReopen;
     };
 
     // async open
     vts::openStorageView(path, std::make_shared<StorageViewOpenCallback>
-                         (cache, callback));
+                         (cache, callback, forcedReopen));
 
     // nothing available so far
     return {};
@@ -730,19 +732,20 @@ openStorageView(const std::string &path
 } // namespace
 
 DriverWrapper::pointer openVts(const std::string &path
-                               , const vtslibs::vts::OpenOptions &openOptions
+                               , const OpenOptions &openOptions
                                , DeliveryCache &cache
                                , const DeliveryCache::Callback &callback)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:
-        return std::make_shared<VtsTileSet>(path, openOptions);
+        return std::make_shared<VtsTileSet>(path, openOptions.openOptions);
 
     case vts::DatasetType::Storage:
         return std::make_shared<VtsStorage>(vts::openStorage(path));
 
     case vts::DatasetType::StorageView:
-        return openStorageView(path, cache, callback);
+        return openStorageView
+            (path, cache, openOptions.forcedReopen, callback);
 
     case vts::DatasetType::TileIndex:
         return std::make_shared<VtsTileIndex>(path);

@@ -30,11 +30,13 @@
 #include <algorithm>
 
 #include <boost/asio.hpp>
+#include <boost/logic/tribool.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/chrono/duration.hpp>
 #include <boost/utility/in_place_factory.hpp>
 
 #include "utility/rlimit.hpp"
+#include "utility/enum-io.hpp"
 
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/storage/io.hpp"
@@ -60,6 +62,13 @@ constexpr std::time_t CHECK_INTERVAL(5);
 constexpr std::time_t MAX_INTERVAL_BETWEEN_HITS(600);
 
 struct Record {
+    enum class Status {
+        pending // driver is not ready yet
+        , ready // driver is ready and usable
+        , outdated // driver is ready but outdated, consider a reopen
+        , invalid // driver was not opened due to error
+     };
+
     Record(const std::string &path)
         : path(path), lastHit(std::time(nullptr))
     {}
@@ -70,13 +79,38 @@ struct Record {
         lastHit = now;
     }
 
-    /** Is the driver ready?
+    /** Driver status.
+     *
+     * \param checkForChange: check for underlying dataset change
+     *            false never
+     *            true always
+     *            indeterminate only for hot content
      */
-    bool ready() const { return driver.get(); }
+    Status status(boost::tribool checkForChange = boost::indeterminate) const {
+        if (!driver) {
+            // no driver, either not loaded yet or invalid
+            return (openCallbacks.empty()
+                    ? Status::invalid
+                    : Status::pending);
+        }
 
-    /** Is this record invalid?
-     */
-    bool invalid() const { return !driver && openCallbacks.empty(); }
+        if (checkForChange) {
+            // always check for change
+            return (driver->externallyChanged()
+                    ? Status::outdated
+                    : Status::ready);
+        }
+
+        if (!checkForChange) {
+            // never check for change
+            return Status::ready;
+        }
+
+        // check for change only if hotcontent
+        return ((driver->hotContent() && driver->externallyChanged())
+                ? Status::outdated
+                : Status::ready);
+    }
 
     // path to dataset
     std::string path;
@@ -89,6 +123,13 @@ struct Record {
     // time of last cache hit
     std::time_t lastHit;
 };
+
+UTILITY_GENERATE_ENUM_IO(Record::Status,
+    ((pending))
+    ((ready))
+    ((outdated))
+    ((invalid))
+)
 
 typedef std::map<utility::FileId, Record> Drivers;
 
@@ -113,16 +154,19 @@ public:
 
     Driver get(const std::string &path);
 
-    void get(const std::string &path, const Callback &callback);
+    void get(const std::string &path, const Callback &callback
+             , boost::tribool checkForChange = boost::indeterminate);
 
 private:
-    void open(Record &record);
+    void open(Record &record, bool forcedReopen);
     void finishOpen(Record &record, const Expected &value);
 
     void get(std::unique_lock<std::mutex> &lock
              , const std::string &path, const utility::FileId &fid
              , Drivers::iterator idrivers
-             , const Callback &callback);
+             , const Callback &callback
+             , const boost::optional<Record::Status> &status = boost::none
+             , boost::tribool checkForChange = boost::indeterminate);
 
     void start(std::size_t count);
     void stop();
@@ -195,15 +239,15 @@ void DeliveryCache::Detail::worker(std::size_t id)
     LOG(info2) << "Spawned cache worker id:" << id << ".";
 
     for (;;) {
-        // try {
+        try {
             ios_.run();
             LOG(info2) << "Terminated cache worker id:" << id << ".";
             return;
-        // } catch (const std::exception &e) {
-        //     LOG(err3)
-        //         << "Uncaught exception in cache worker: <" << e.what()
-        //         << ">. Going on.";
-        // }
+        } catch (const std::exception &e) {
+            LOG(err3)
+                << "Uncaught exception (" << typeid(e).name()
+                << ") in cache worker: <" << e.what() << ">. Going on.";
+        }
     }
 }
 
@@ -220,8 +264,8 @@ void DeliveryCache::Detail::startMaintenance()
                 check();
             } catch (const std::exception &e) {
                 LOG(err3)
-                    << "Uncaught exception in maintenance: <" << e.what()
-                    << ">. Going on.";
+                    << "Uncaught exception (" << typeid(e).name()
+                    << ") in maintenance: <" << e.what() << ">. Going on.";
             }
 
             // start maintenance again
@@ -231,10 +275,11 @@ void DeliveryCache::Detail::startMaintenance()
 }
 
 DeliveryCache::Driver openDriver(const std::string &path
-                                 , const vts::OpenOptions &openOptions
+                                 , const OpenOptions &openOptions
                                  , DeliveryCache &cache
                                  , const DeliveryCache::Callback &callback)
 {
+    LOG(info2) << "Opening driver for \"" << path << "\".";
     // try VTS
     try {
         return openVts(path, openOptions, cache, callback);
@@ -287,10 +332,10 @@ void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
     }
 }
 
-void DeliveryCache::Detail::open(Record &record)
+void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
 {
     // NB: using dispatch instead of post, i.e. we do not block any other thread
-    ios_.dispatch([this, &record]() mutable
+    ios_.dispatch([this, &record, forcedReopen]() mutable
     {
         const auto dispatch([this](CallbackList &callbacks
                                    , const Expected &value)
@@ -304,7 +349,9 @@ void DeliveryCache::Detail::open(Record &record)
         try {
             // open driver
             auto driver
-                (openDriver(record.path, openOptions_, cache_
+                (openDriver(record.path
+                            , OpenOptions(openOptions_, forcedReopen)
+                            , cache_
                             , [this, &record](const Expected &value)
                             {
                                 finishOpen(record, value);
@@ -330,54 +377,77 @@ DeliveryCache::~DeliveryCache() {}
 void DeliveryCache::Detail
 ::get(std::unique_lock<std::mutex> &lock
       , const std::string &path, const utility::FileId &fid
-      , Drivers::iterator idrivers
-      , const Callback &callback)
+      , Drivers::iterator idrivers, const Callback &callback
+      , const boost::optional<Record::Status> &status
+      , boost::tribool checkForChange)
 {
+    bool forcedReopen(false);
+
     if (idrivers != drivers_.end()) {
         // record found
         auto &record(idrivers->second);
 
-        if (record.ready()) {
-            // valid record, grab driver
-            const auto driver(record.driver);
+        // check status (either given or fetch fresh)
+        switch (status ? *status : record.status(checkForChange)) {
+        case Record::Status::ready:
+            {
+                // valid record, grab driver
+                const auto driver(record.driver);
 
-            // unlock and call callback
-            lock.unlock();
-            callback(driver);
+                // unlock and call callback
+                lock.unlock();
+                callback(driver);
+            }
+            // done here
             return;
-        } else if (record.invalid()) {
+
+        case Record::Status::invalid:
             // invalid record
             // unlock and call callback
             lock.unlock();
             callback(std::make_exception_ptr
                      (vs::NoSuchTileSet("(cached) No such tileset.")));
+            // done here
+            return;
+
+        case Record::Status::pending:
+            // pending open
+            record.openCallbacks.push_back(callback);
+            lock.unlock();
+            // done here
+            return;
+
+        case Record::Status::outdated:
+            // dataset has been externally changed, drop driver
+            LOG(info1) << "Scheduling outdated driver reopen.";
+            record.driver.reset();
+            forcedReopen = true;
+            // schedule reopen
+            break;
         }
-
-        // pending open
-        record.openCallbacks.push_back(callback);
-
-        // unlock
-        lock.unlock();
-        return;
+    } else {
+        // create new entry and grab reference to it
+        idrivers = drivers_.insert(Drivers::value_type(fid, Record(path)))
+            .first;
     }
 
-    // create new entry and grab reference to it
-    idrivers = drivers_.insert(Drivers::value_type(fid, Record(path))).first;
+    // remember callback
     idrivers->second.openCallbacks.push_back(callback);
 
     // call open unlocked
     lock.unlock();
-    open(idrivers->second);
+    open(idrivers->second, forcedReopen);
 }
 
 void DeliveryCache::Detail::get(const std::string &path
-                                 , const Callback &callback)
+                                , const Callback &callback
+                                , boost::tribool checkForChange)
 {
     const auto fid(utility::FileId::from(path));
 
     std::unique_lock<std::mutex> guard(mutex_);
     auto idrivers(drivers_.find(fid));
-    get(guard, path, fid, idrivers, callback);
+    get(guard, path, fid, idrivers, callback, boost::none, checkForChange);
 }
 
 namespace {
@@ -404,12 +474,24 @@ DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
     std::unique_lock<std::mutex> guard(mutex_);
     auto idrivers(drivers_.find(fid));
 
+    boost::optional<Record::Status> status;
+
     if (idrivers != drivers_.end()) {
-        if (idrivers->second.ready()) {
-            // already available -> shortcut
-            return idrivers->second.driver;
-        } else if (idrivers->second.invalid()) {
+        auto &record(idrivers->second);
+        switch (auto s = record.status()) {
+        case Record::Status::ready:
+            // fine
+            return record.driver;
+
+        case Record::Status::invalid:
             throw vs::NoSuchTileSet("(cached) No such tileset.");
+
+        case Record::Status::outdated:
+        case Record::Status::pending:
+            // either waiting for pending open or underlying dataset has been
+            // changed, need to wait for driver re/open
+            status = s;
+            break;
         }
     }
 
@@ -421,17 +503,17 @@ DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
         , [promise](const Expected &driver)
     {
         driver.get(promise.promise());
-    });
+    }, status);
 
     // wait without holding lock
     auto value(future.get());
     return value;
 }
 
-void DeliveryCache::get(const std::string &path
-                        , const Callback &callback)
+void DeliveryCache::get(const std::string &path, const Callback &callback
+                        , bool forcedReopen)
 {
-    workers_->get(path, callback);
+    workers_->get(path, callback, forcedReopen);
 }
 
 DeliveryCache::Driver DeliveryCache::get(const std::string &path)
@@ -494,21 +576,28 @@ void DeliveryCache::Detail::check()
     for (auto idrivers(drivers_.begin()), edrivers(drivers_.end());
          idrivers != edrivers; )
     {
-        if (idrivers->second.invalid()) {
-            // invalid -> remove
+        // fetch status, do not check for change
+        switch (idrivers->second.status(false)) {
+        case Record::Status::ready:
+        case Record::Status::outdated:
+            // mark it down
+            records.emplace_back(idrivers++);
+            resources += records.back().resources;
+            break;
+
+        case Record::Status::invalid:
+            // invalid -> remove immediately
             idrivers = erase(idrivers);
-            continue;
-        } else if (!idrivers->second.ready()) {
+            break;
+
+        case Record::Status::pending:
             // not ready yet -> skip
             ++idrivers;
-            continue;
+            break;
         }
-
-        // build record wrapper
-        records.emplace_back(idrivers++);
-        resources += records.back().resources;
     }
 
+    // drivers to remove
     std::vector<Drivers::iterator> toRemove;
 
     // analyze open drivers without lock

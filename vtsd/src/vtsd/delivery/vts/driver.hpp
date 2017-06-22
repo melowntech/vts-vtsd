@@ -31,7 +31,7 @@
 #include "../cache.hpp"
 
 DriverWrapper::pointer openVts(const std::string &path
-                               , const vtslibs::vts::OpenOptions &openOptions
+                               , const OpenOptions &openOptions
                                , DeliveryCache &cache
                                , const DeliveryCache::Callback &callback);
 

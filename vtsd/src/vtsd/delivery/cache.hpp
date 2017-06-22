@@ -46,6 +46,16 @@
 
 #include "./driver.hpp"
 
+struct OpenOptions {
+    vtslibs::vts::OpenOptions openOptions;
+    bool forcedReopen;
+
+    OpenOptions(const vtslibs::vts::OpenOptions &openOptions
+                , bool forcedReopen)
+        : openOptions(openOptions), forcedReopen(forcedReopen)
+    {}
+};
+
 class DeliveryCache : boost::noncopyable {
 public:
     DeliveryCache(unsigned int threadCount
@@ -58,9 +68,16 @@ public:
     typedef DriverWrapper::pointer Driver;
 
     /** Calls callback with driver for given path. Call is immediated if driver
-     *  is already open or postponed when driver is available.
+     *  is already open or postponed until driver is available.
+     *
+     * \param path filesystem path of dataset to open
+     * \param callback completion handler
+     *
+     * \param forcedReopen set to true if we are getting driver as a result of
+     *                     another driver reopen
      */
-    void get(const std::string &path, const Callback &callback);
+    void get(const std::string &path, const Callback &callback
+             , bool forcedReopen = false);
 
     /** Returns driver for given path. Blocking call.
      */
