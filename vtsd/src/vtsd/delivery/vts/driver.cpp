@@ -26,6 +26,9 @@
 
 #include <mutex>
 
+#include <boost/optional.hpp>
+#include <boost/utility/in_place_factory.hpp>
+
 #include "imgproc/png.hpp"
 
 #include "vts-libs/vts/support.hpp"
@@ -230,7 +233,7 @@ struct Definition {
     vs::FileStat debugStat;
 
     template <typename Source>
-    Definition(Source &source, const std::string &referenceFrameId) {
+    Definition(const Source &source, const std::string &referenceFrameId) {
         const auto mtc(source.meshTilesConfig());
 
         {
@@ -259,20 +262,32 @@ struct Definition {
     }
 };
 
+template <typename T>
+class LazyConfigHolder {
+public:
+    LazyConfigHolder() = default;
+
+    template <typename ...Args> T& operator()(Args &&...args) const {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (!data_) { data_ = boost::in_place(std::forward<Args>(args)...); }
+        return *data_;
+    }
+
+private:
+    mutable std::mutex mutex_;
+    mutable boost::optional<T> data_;
+};
+
 class VtsTileSet : public DriverWrapper
 {
 public:
     VtsTileSet(const std::string &path
                , const vtslibs::vts::OpenOptions &openOptions)
         : delivery_(vts::Delivery::open(path, openOptions))
-        , mapConfig_(*delivery_)
-        , definition_(*delivery_, mapConfig_.referenceFrameId)
     {}
 
     VtsTileSet(std::shared_ptr<vts::Driver> driver)
         : delivery_(vts::Delivery::open(std::move(driver)))
-        , mapConfig_(*delivery_)
-        , definition_(*delivery_, mapConfig_.referenceFrameId)
     {}
 
     virtual vs::Resources resources() const {
@@ -290,9 +305,15 @@ public:
     asDriver(const DriverWrapper::pointer &driver);
 
 private:
+    const MapConfig& mapConfig() { return mapConfig_(*delivery_); }
+
+    const Definition& definition() {
+        return definition_(*delivery_, mapConfig().referenceFrameId);
+    }
+
     vts::Delivery::pointer delivery_;
-    MapConfig mapConfig_;
-    Definition definition_;
+    LazyConfigHolder<MapConfig> mapConfig_;
+    LazyConfigHolder<Definition> definition_;
     std::mutex mutex_;
 };
 
@@ -346,24 +367,27 @@ void VtsTileSet::handle(Sink sink, const std::string &path
     VtsFileInfo info(path, config, ExtraFlags::enableTilesetInternals);
 
     switch (info.type) {
-    case FileInfo::Type::definition:
-        return sink.content(definition_.data, fileinfo(definition_.stat, -1));
+    case FileInfo::Type::definition: {
+        const auto &def(definition());
+        return sink.content(def.data, fileinfo(def.stat, -1)); }
 
-    case FileInfo::Type::dirs:
-        return sink.content(mapConfig_.dirsData
-                            , fileinfo(mapConfig_.dirsStat, -1));
+    case FileInfo::Type::dirs: {
+        const auto &mp(mapConfig());
+        return sink.content(mp.dirsData, fileinfo(mp.dirsStat, -1)); }
 
     case FileInfo::Type::file:
         if (info.file == vs::File::config) {
             switch (info.flavor) {
-            case vts::FileFlavor::regular:
+            case vts::FileFlavor::regular: {
                 // serve updated map config
-                return sink.content(mapConfig_.data
-                                    , fileinfo(mapConfig_.stat, -1));
+                const auto &mp(mapConfig());
+                return sink.content(mp.data, fileinfo(mp.stat, -1)); }
 
-            case vts::FileFlavor::debug:
-                return sink.content(definition_.debugData
-                                    , fileinfo(definition_.debugStat, -1));
+            case vts::FileFlavor::debug: {
+                const auto &def(definition());
+                return sink.content(def.debugData
+                                    , fileinfo(def.debugStat, -1)); }
+
             default:
                 // pass
                 break;
@@ -440,7 +464,7 @@ class VtsStorage : public DriverWrapper
 {
 public:
     VtsStorage(vts::Storage &&storage)
-        : storage_(std::move(storage)), mapConfig_(storage_)
+        : storage_(std::move(storage))
     {}
 
     virtual vs::Resources resources() const {
@@ -457,9 +481,10 @@ public:
     static vts::Storage asStorage(const DriverWrapper::pointer &driver);
 
 private:
-    vts::Storage storage_;
+    const MapConfig& mapConfig() { return mapConfig_(storage_); }
 
-    MapConfig mapConfig_;
+    vts::Storage storage_;
+    LazyConfigHolder<MapConfig> mapConfig_;
 };
 
 vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
@@ -479,12 +504,13 @@ void VtsStorage::handle(Sink sink, const std::string &path
     VtsFileInfo info(path, config);
 
     if (path == constants::Config) {
-        return sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
+        const auto &mp(mapConfig());
+        return sink.content(mp.data, fileinfo(mp.stat, -1));
     }
 
     if (path == constants::Dirs) {
-        return sink.content(mapConfig_.dirsData
-                            , fileinfo(mapConfig_.dirsStat, -1));
+        const auto &mp(mapConfig());
+        return sink.content(mp.dirsData, fileinfo(mp.dirsStat, -1));
     }
 
     // unknonw file, let's test other members
