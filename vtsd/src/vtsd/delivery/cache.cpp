@@ -70,14 +70,22 @@ struct Record {
      };
 
     Record(const std::string &path)
-        : path(path), lastHit(std::time(nullptr))
+        : path(path), lastHit(std::time(nullptr)), hits(), serial()
     {}
 
     ~Record() {}
 
+    void set(const DeliveryCache::Expected value) {
+        driver = value.get();
+        update();
+    }
+
     void update(std::time_t now) {
         lastHit = now;
+        ++hits;
     }
+
+    void update() { update(std::time(nullptr)); }
 
     /** Driver status.
      *
@@ -112,6 +120,11 @@ struct Record {
                 : Status::ready);
     }
 
+    void prepareReopen() {
+        driver.reset();
+        ++serial;
+    }
+
     // path to dataset
     std::string path;
     // pointer to driver
@@ -122,6 +135,13 @@ struct Record {
 
     // time of last cache hit
     std::time_t lastHit;
+
+    // number of hits
+    std::size_t hits;
+
+    // serial number, updated on changes, used to repel maintenace loop from
+    // removing
+    std::size_t serial;
 };
 
 UTILITY_GENERATE_ENUM_IO(Record::Status,
@@ -309,7 +329,7 @@ void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
         {
             std::unique_lock<std::mutex> guard(mutex_);
             // store driver and steal callbacks
-            record.driver = value.get();
+            record.set(value);
             std::swap(callbacks, record.openCallbacks);
         }
 
@@ -393,6 +413,7 @@ void DeliveryCache::Detail
             {
                 // valid record, grab driver
                 const auto driver(record.driver);
+                record.update();
 
                 // unlock and call callback
                 lock.unlock();
@@ -420,7 +441,7 @@ void DeliveryCache::Detail
         case Record::Status::outdated:
             // dataset has been externally changed, drop driver
             LOG(info1) << "Scheduling outdated driver reopen.";
-            record.driver.reset();
+            record.prepareReopen();
             forcedReopen = true;
             // schedule reopen
             break;
@@ -481,6 +502,7 @@ DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
         switch (auto s = record.status()) {
         case Record::Status::ready:
             // fine
+            record.update();
             return record.driver;
 
         case Record::Status::invalid:
@@ -537,10 +559,12 @@ struct RecordWrapper {
     Drivers::iterator idrivers;
     Record *record;
     vs::Resources resources;
+    std::size_t oldSerial;
 
     RecordWrapper(Drivers::iterator idrivers)
         : idrivers(idrivers), record(&idrivers->second)
         , resources(record->driver->resources())
+        , oldSerial(record->serial)
     {}
 
     bool changed() const {
@@ -549,6 +573,10 @@ struct RecordWrapper {
 
     bool operator<(const RecordWrapper &o) const {
         return resources < o.resources;
+    }
+
+    bool reopened() const {
+        return oldSerial != record->serial;
     }
 };
 
@@ -598,7 +626,7 @@ void DeliveryCache::Detail::check()
     }
 
     // drivers to remove
-    std::vector<Drivers::iterator> toRemove;
+    RecordWrapper::list toRemove;
 
     // analyze open drivers without lock
     {
@@ -611,14 +639,14 @@ void DeliveryCache::Detail::check()
         for (const auto &rw : records) {
             if (rw.changed()) {
                 // dataset has been changed, plan removal
-                toRemove.push_back(rw.idrivers);
+                toRemove.push_back(rw);
                 resources -= rw.resources;
                 continue;
             }
 
             if (resources > cleanupLimit_) {
                 // too much memory, remove
-                toRemove.push_back(rw.idrivers);
+                toRemove.push_back(rw);
                 resources -= rw.resources;
                 continue;
             }
@@ -627,6 +655,8 @@ void DeliveryCache::Detail::check()
 
     // under lock again
 
-    // drop marked drivers
-    for (const auto &idriver : toRemove) {  erase(idriver); }
+    // drop marked drivers (unless they have been changed meanwhile)
+    for (const auto &rw : toRemove) {
+        if (!rw.reopened()) { erase(rw.idrivers); }
+    }
 }
