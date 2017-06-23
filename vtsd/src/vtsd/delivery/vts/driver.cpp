@@ -807,7 +807,9 @@ openTileSet(const std::string &path
             asyncOpenStorage(path, cache, storageOpenCallback, forcedReopen);
         }
 
+        // NB: open options are ignore since we have our own
         virtual void openDriver(const boost::filesystem::path &path
+                                , const vts::OpenOptions&
                                 , const DriverOpenCallback::pointer
                                 &driverOpenCallback)
         {
@@ -835,10 +837,6 @@ openTileSet(const std::string &path
 
     // nothing available so far
     return {};
-
-    // // TODO: implement me
-    // callback(DriverWrapper::pointer
-    //          (std::make_shared<VtsTileSet>(path, openOptions.openOptions)));
 }
 
 } // namespace

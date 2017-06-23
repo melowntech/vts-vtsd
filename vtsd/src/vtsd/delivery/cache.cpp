@@ -354,8 +354,7 @@ void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
 
 void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
 {
-    // NB: using dispatch instead of post, i.e. we do not block any other thread
-    ios_.dispatch([this, &record, forcedReopen]() mutable
+    ios_.post([this, &record, forcedReopen]() mutable
     {
         const auto dispatch([this](CallbackList &callbacks
                                    , const Expected &value)
