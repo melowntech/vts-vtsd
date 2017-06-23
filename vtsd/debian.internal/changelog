@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.19) citationtech-wheezy; urgency=low
+
+  * Using asynchdonous driver open.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Fri, 23 Jun 2017 11:47:57 +0200
+
 ctt-vts-vtsd (0.18) citationtech-wheezy; urgency=low
 
   * dirs.json contains directories for virtual surfaces
