@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.21) citationtech-wheezy; urgency=low
+
+  * Fully asynchronous dataset open.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Mon, 26 Jun 2017 14:41:26 +0200
+
 ctt-vts-vtsd (0.20) citationtech-wheezy; urgency=low
 
   * Fixed cache check interval (60s).
