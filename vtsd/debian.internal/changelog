@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.20) citationtech-wheezy; urgency=low
+
+  * Fixed cache check interval (60s).
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Mon, 26 Jun 2017 12:10:29 +0200
+
 ctt-vts-vtsd (0.19) citationtech-wheezy; urgency=low
 
   * Using asynchdonous driver open.
