@@ -54,12 +54,7 @@ namespace {
 
 /** Time between flushes.
  */
-// constexpr std::time_t CHECK_INTERVAL(60);
-constexpr std::time_t CHECK_INTERVAL(5);
-
-/** Maximal time between hits in cache for single record.
- */
-constexpr std::time_t MAX_INTERVAL_BETWEEN_HITS(600);
+constexpr std::time_t CHECK_INTERVAL(60);
 
 struct Record {
     enum class Status {
