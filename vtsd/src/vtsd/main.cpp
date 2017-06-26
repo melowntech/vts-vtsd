@@ -442,69 +442,102 @@ void Daemon::handlePlain(const fs::path &filePath, const http::Request&
 void Daemon::handleDataset(const fs::path &filePath, const http::Request&
                            , Sink sink, const LocationConfig &location)
 {
-    auto parent(filePath.parent_path());
-    auto file(filePath.filename());
+    const auto parent(filePath.parent_path());
+    const auto file(filePath.filename());
 
-    try {
-        deliveryCache_->get(parent.string())
-            ->handle(sink, file.string(), location);
-    } catch (vs::NoSuchTileSet) {
-        if (!exists(filePath)) {
-            LOG(err1) << "Path " << filePath << " doesn't exist.";
-            sink.error(utility::makeError<NotFound>("Path doesn't exist."));
-            return;
-        }
+    deliveryCache_->get
+        (parent.string()
+         , [=, this](const DeliveryCache::Expected &value)
+         mutable -> void
+    {
+        try {
+            value.get()->handle(sink, file.string(), location);
+        } catch (vs::NoSuchTileSet) {
+            boost::system::error_code ec;
+            auto status(fs::status(filePath, ec));
+            if (ec) {
+                // some error
+                if (!fs::exists(status)) {
+                    LOG(err1) << "Path " << filePath << " doesn't exist.";
+                    sink.error(utility::makeError<NotFound>
+                               ("Path doesn't exist."));
+                    return;
+                }
 
-        if (is_directory(status(filePath))) {
-            if (file != ".") {
-                // directory redirect
-                sink.redirect(file.string() + "/", utility::HttpCode::Found);
+                sink.error(utility::makeError<InternalError>
+                           ("Cannot stat parent path."));
                 return;
             }
 
+            // file exists
+            if (fs::is_directory(status)) {
+                if (file != ".") {
+                    // directory redirect
+                    sink.redirect
+                        (file.string() + "/", utility::HttpCode::Found);
+                    return;
+                }
+
+                if (location.enableListing) {
+                    // directory and we have enabled browser -> directory
+                    // listing
+                    sendListing(parent, sink);
+                    return;
+                }
+
+                // listing not enabled -> forbidden
+                LOG(err1) << "Path " << filePath << " is unlistable.";
+                return sink.error
+                    (utility::makeError<Forbidden>("Unlistable"));
+            }
+
+            // not a directory, check if this is a file-based dataset
+            deliveryCache_->get
+                (filePath.string()
+                 , [=,this](const DeliveryCache::Expected &value)
+                 mutable -> void
+            {
+                if (value) {
+                    LOG(info1) << "Non-directory dataset.";
+                    // non-directory dataset -> treat as a directory -> redirect
+                    return sink.redirect(file.string() + "/"
+                                         , utility::HttpCode::Found);
+                } else {
+                    LOG(err1) << "No dataset found at " << filePath << ".";
+                    return sink.error
+                        (utility::makeError<NotFound>("No such dataset"));
+                }
+            });
+        } catch (const ListContent &lc) {
             if (location.enableListing) {
                 // directory and we have enabled browser -> directory listing
-                sendListing(parent, sink);
+                sendListing(parent, sink, lc.listingBootstrap);
                 return;
             }
-
-            // listing not enabled -> forbidden
             LOG(err1) << "Path " << filePath << " is unlistable.";
-            return sink.error(utility::makeError<Forbidden>("Unlistable"));
-        } else if (tryOpen(filePath)) {
-            // non-directory dataset -> treat as a directory -> redirect
-            return sink.redirect(file.string() + "/"
-                                 , utility::HttpCode::Found);
-        }
+            sink.error
+                (utility::makeError<Forbidden>("Unbrowsable"));
 
-        // not found
-        LOG(err1) << "No dataset found at " << filePath << ".";
-        sink.error(utility::makeError<NotFound>("No such dataset"));
-        return;
-    } catch (const ListContent &lc) {
-        if (location.enableListing) {
-            // directory and we have enabled browser -> directory listing
-            sendListing(parent, sink, lc.listingBootstrap);
-            return;
-        }
-        LOG(err1) << "Path " << filePath << " is unlistable.";
-        sink.error(utility::makeError<Forbidden>("Unbrowsable"));
-    } catch (const std::system_error &e) {
-        LOG(err1) << e.what();
-        if (e.code().category() == std::system_category()) {
-            if (e.code().value() == ENOENT) {
-                return sink.error
-                    (utility::makeError<NotFound>("No such file"));
+        } catch (const std::system_error &e) {
+            LOG(err1) << e.what();
+            if (e.code().category() == std::system_category()) {
+                if (e.code().value() == ENOENT) {
+                    return sink.error
+                        (utility::makeError<NotFound>("No such file"));
+                }
             }
-        }
-    } catch (const vs::NoSuchFile &e) {
-        LOG(err1) << e.what();
-        sink.error(utility::makeError<NotFound>("No such file"));
 
-    } catch (std::domain_error &e) {
-        LOG(err1) << e.what();
-        sink.error(utility::makeError<NotFound>("Domain error"));
-    }
+        } catch (const vs::NoSuchFile &e) {
+            LOG(err1) << e.what();
+            sink.error
+                (utility::makeError<NotFound>("No such file"));
+
+        } catch (std::domain_error &e) {
+            LOG(err1) << e.what();
+            sink.error
+                (utility::makeError<NotFound>("Domain error"));
+        }
+    });
 }
 
 void Daemon::handlePrefix(const LocationConfig &location

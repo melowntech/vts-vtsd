@@ -62,10 +62,10 @@ public:
                   , const vtslibs::vts::OpenOptions &openOptions);
     ~DeliveryCache();
 
-    typedef utility::Expected<DriverWrapper::pointer> Expected;
+    typedef DriverWrapper::pointer Driver;
+    typedef utility::Expected<Driver> Expected;
     typedef std::function<void(const Expected&)> Callback;
     typedef std::vector<Callback> CallbackList;
-    typedef DriverWrapper::pointer Driver;
 
     /** Calls callback with driver for given path. Call is immediated if driver
      *  is already open or postponed until driver is available.
@@ -84,6 +84,7 @@ public:
     Driver get(const std::string &path);
 
 private:
+
     class Detail;
     std::unique_ptr<Detail> workers_;
 };
