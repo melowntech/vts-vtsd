@@ -447,7 +447,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
 
     deliveryCache_->get
         (parent.string()
-         , [=, this](const DeliveryCache::Expected &value)
+         , [=](const DeliveryCache::Expected &value)
          mutable -> void
     {
         try {
@@ -494,7 +494,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
             // not a directory, check if this is a file-based dataset
             deliveryCache_->get
                 (filePath.string()
-                 , [=,this](const DeliveryCache::Expected &value)
+                 , [=](const DeliveryCache::Expected &value)
                  mutable -> void
             {
                 if (value) {
