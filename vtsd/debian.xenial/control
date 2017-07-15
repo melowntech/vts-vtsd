@@ -20,6 +20,7 @@ Homepage: https://www.melown.com/maps
 Package: vts-vtsd
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, vts-registry (>= 1.0)
+         , proj-data-vts
 Description: VTS HTTP backend server
 
 Package: vts-vtsd-dbg
