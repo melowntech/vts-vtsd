@@ -15,7 +15,6 @@ set(vtsd_SOURCES
 
   delivery/vts/driver.hpp delivery/vts/driver.cpp
   delivery/vts0/driver.hpp delivery/vts0/driver.cpp
-  delivery/tileset/driver.hpp delivery/tileset/driver.cpp
   delivery/driver.hpp
   delivery/cache.hpp delivery/cache.cpp
 

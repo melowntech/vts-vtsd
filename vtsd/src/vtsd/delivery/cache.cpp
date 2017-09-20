@@ -43,7 +43,6 @@
 
 #include "./cache.hpp"
 #include "./vts/driver.hpp"
-#include "./tileset/driver.hpp"
 #include "./vts0/driver.hpp"
 
 namespace asio = boost::asio;
@@ -300,17 +299,13 @@ DeliveryCache::Driver openDriver(const std::string &path
         return openVts(path, openOptions, cache, callback);
     } catch (vs::NoSuchTileSet) {}
 
-    // try VTS0
-    try { return openVts0(path); } catch (vs::NoSuchTileSet) {}
-
-    // finaly, try old TS
-    return openTileSet(path);
+    // finally try VTS0
+    return openVts0(path);
 }
 
 void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
 {
-    const auto dispatch([this](CallbackList &callbacks
-                               , const Expected &value)
+    const auto dispatch([this](CallbackList &callbacks, const Expected &value)
     {
         for (const auto &callback : callbacks) {
             // dispatch in thread pool
