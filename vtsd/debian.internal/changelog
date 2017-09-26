@@ -1,3 +1,9 @@
+ctt-vts-vtsd (0.25) citationtech-wheezy; urgency=low
+
+  * No need to fully open all tilesets to get storage(view) map config.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Tue, 26 Sep 2017 11:04:26 +0200
+
 ctt-vts-vtsd (0.24) citationtech-wheezy; urgency=low
 
   * Fixed aggregated driver async open.

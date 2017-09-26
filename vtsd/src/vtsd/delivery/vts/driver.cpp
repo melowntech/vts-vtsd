@@ -267,7 +267,7 @@ class LazyConfigHolder {
 public:
     LazyConfigHolder() = default;
 
-    template <typename ...Args> T& operator()(Args &&...args) const {
+    template <typename ...Args> const T& operator()(Args &&...args) const {
         std::lock_guard<std::mutex> guard(mutex_);
         if (!data_) { data_ = boost::in_place(std::forward<Args>(args)...); }
         return *data_;
