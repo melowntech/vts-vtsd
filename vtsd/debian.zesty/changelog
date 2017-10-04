@@ -5,6 +5,12 @@ vts-vtsd (1.2) melown-zesty; urgency=medium
 
  -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Wed, 12 Jul 2017 11:42:46 +0200
 
+vts-vtsd (1.1) melown-zesty; urgency=low
+
+  * Open dataset are now shared.
+
+ -- Ladislav Horky <ladislav.horky@citationtech.net>  Fri, 23 Jun 2017 17:30:02 +0200
+
 vts-vtsd (1.0) melown-zesty; urgency=low
 
   * Initial release for Ubuntu/Zesty
