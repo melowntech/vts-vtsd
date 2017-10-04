@@ -4,3 +4,4 @@ vts-vtsd
 vts-vtsd-dbg
 *.debhelper
 files
+control
