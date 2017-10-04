@@ -1,0 +1,15 @@
+m4_dnl ###############################################################
+m4_dnl ## Added at the end of control file
+m4_dnl ###############################################################
+
+Package: ctt-vts-vtsd
+Architecture: any
+Depends: vts-vtsd (= ${binary:Version})
+Description: VTS Vtsd backend server (transitional package)
+ Package rename ctt-vts-vtsd -> vts-vtsd
+
+Package: ctt-vts-vtsd-dbg
+Architecture: any
+Depends: vts-vtsd-dbg (= ${binary:Version})
+Description: VTS Vtsd backend server (transitional package)
+ Package rename ctt-vts-vtsd-dbg -> vts-vtsd-dbg
