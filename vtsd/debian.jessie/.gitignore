@@ -1,6 +1,0 @@
-*debhelper*
-*.substvars
-vts-vtsd
-vts-vtsd-dbg
-*.debhelper
-files

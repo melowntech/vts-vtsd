@@ -1,6 +1,0 @@
-*debhelper*
-*.substvars
-ctt-vts-seznamcz-vtsd
-ctt-vts-seznamcz-vtsd-dbg
-*.debhelper
-files

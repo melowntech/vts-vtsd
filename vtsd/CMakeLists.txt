@@ -43,10 +43,16 @@ add_subdirectory(src/half)
 add_subdirectory(src/http)
 
 # vts libraries
-#buildsys_nobuild_target(vts-libs)
+if(NOT DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
+  buildsys_nobuild_target(vts-libs)
+endif()
+
 add_subdirectory(src/vts-libs)
-# force build of vts tool
-add_custom_target(.vts ALL DEPENDS vts vts02vts vts2vts vts0)
+
+if(NOT DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
+  # force build of vts tool
+  add_custom_target(.vts ALL DEPENDS vts vts02vts vts2vts ts2vts0 vts0)
+endif()
 
 # project
 add_subdirectory(src/vtsd)
