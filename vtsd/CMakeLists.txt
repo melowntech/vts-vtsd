@@ -46,7 +46,8 @@ add_subdirectory(src/http)
 #buildsys_nobuild_target(vts-libs)
 add_subdirectory(src/vts-libs)
 
-if(NOT DO_NOT_BUILD_TOOLS)
+if(BUILDSYS_NOBUILD_TARGET_vts-tools)
+  buildsys_nobuild(vts-libs)
   # force build of vts tool
   add_custom_target(.vts ALL DEPENDS vts vts02vts vts2vts ts2vts0 vts0)
 endif()
