@@ -1,48 +1,25 @@
 #!/usr/bin/make -f
 # -*- gnumakefile -*-
 
-PACKAGE_VERSION=$(shell dpkg-parsechangelog | grep ^Version: | cut -d' ' -f2)
+# include common debian support
+include buildsys/common/include/debian.mk
 
 # list of packages to build
 PACKAGES=VTSD
 
 # package names
-DEB_PACKAGE_VTSD=vts-vtsd
-DEB_PACKAGE_DEBUG=vts-vtsd-dbg
+DEB_PACKAGE_VTSD=$(DEB_SOURCE)
 
 PREFIX=/opt/vts
 
-# use this build directory
-DEB_BUILDDIR=obj-$(DEB_BUILD_GNU_TYPE)
 # install components
 INSTALL_COMPONENTS_VTSD=main
 
-# add settings here
-CMAKE_FLAGS =  \
-	-DCMAKE_INSTALL_PREFIX:PATH=$(PREFIX) \
-	-DCMAKE_BUILD_TYPE=Release \
-	-DBUILDSYS_PACKAGE_VERSION=${PACKAGE_VERSION} \
-	-DBUILDSYS_NOBUILD_TARGET_vts-tools=TRUE
+# do not build VTS tools provided by vts-libs
+CMAKE_FLAGS=-DBUILDSYS_NOBUILD_TARGET_vts-tools=TRUE
 
-# default rule; tell debhelper we use CMake
-%:
-	dh -Scmake -B$(DEB_BUILDDIR) --parallel -O--version-info $@
-
-# override configuration
-override_dh_auto_configure:
-	dh_auto_configure -- $(CMAKE_FLAGS)
-
-# custom installation
-override_dh_auto_install:
-	$(foreach package, $(PACKAGES) \
-      , $(foreach component, $(INSTALL_COMPONENTS_$(package)) \
-          , DESTDIR=debian/$(DEB_PACKAGE_$(package)) \
-                cmake -DCOMPONENT=$(component) \
-                      -P $(DEB_BUILDDIR)/cmake_install.cmake;))
-
-# place debug info to debug package
-override_dh_strip:
-	dh_strip --dbg-package=$(DEB_PACKAGE_DEBUG)
+# include cmake debian support
+include buildsys/cmake/include/debian.mk
 
 # ignore these:
 override_dh_auto_test:
