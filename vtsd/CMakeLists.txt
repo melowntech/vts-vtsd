@@ -43,7 +43,7 @@ add_subdirectory(src/half)
 add_subdirectory(src/http)
 
 # vts libraries
-if(NOT DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
+if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
   buildsys_nobuild_target(vts-libs)
 endif()
 
