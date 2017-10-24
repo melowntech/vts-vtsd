@@ -24,9 +24,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <vector>
+
 #include "utility/format.hpp"
 
 #include "./config.hpp"
+#include "./config-io.hpp"
 
 namespace po = boost::program_options;
 
@@ -41,7 +44,7 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "dataset").c_str()
          , po::value(&enableDataset)->default_value(enableDataset)
          , "Enable dataset (tileset, storage, etc.) handling at "
-         "this location.")
+         "this location. Allowed values: vts, vtsLegacy, slpk.")
         ((prefix + "browser").c_str()
          , po::value(&enableBrowser)->default_value(enableBrowser)
          , "Enable built-in browser at this location.")
@@ -122,3 +125,20 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
 
     return os;
 }
+
+namespace detail {
+
+std::vector<std::pair<std::string, DatasetProvider::value_type>>
+    boolMapping =
+    {
+    { "false", DatasetProvider::none }
+    , { "off", DatasetProvider::none }
+    , { "0", DatasetProvider::none }
+    , { "no", DatasetProvider::none }
+    , { "true", (DatasetProvider::vts | DatasetProvider::vtsLegacy) }
+    , { "on", (DatasetProvider::vts | DatasetProvider::vtsLegacy) }
+    , { "1", (DatasetProvider::vts | DatasetProvider::vtsLegacy) }
+    , { "yes", (DatasetProvider::vts | DatasetProvider::vtsLegacy) }
+};
+
+} // namespace detail

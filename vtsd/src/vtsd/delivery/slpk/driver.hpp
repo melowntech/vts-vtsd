@@ -24,21 +24,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef libvtslibs_http_vts_driver_hpp_included_
-#define libvtslibs_http_vts_driver_hpp_included_
+#ifndef vtsd_delivery_slpk_driver_hpp_included_
+#define vtsd_delivery_slpk_driver_hpp_included_
 
 #include "../driver.hpp"
 #include "../cache.hpp"
 
-DriverWrapper::pointer openVts(const OpenInfo &openInfo
+DriverWrapper::pointer openSlpk(const OpenInfo &openInfo
                                , const OpenOptions &openOptions
                                , DeliveryCache &cache
                                , const DeliveryCache::Callback &callback);
 
-/** Use default path splitting.
+/** Use custom path splitting.
  */
-inline bool vtsSplitFilePath(const boost::filesystem::path&, SplitPath&) {
-    return false;
-}
+bool slpkSplitFilePath(const boost::filesystem::path &filePath, SplitPath &sp);
 
-#endif // libvtslibs_http_vts_driver_hpp_included_
+#endif // vtsd_delivery_slpk_driver_hpp_included_

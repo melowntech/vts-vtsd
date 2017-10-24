@@ -28,6 +28,7 @@
 
 #include "vts-libs/storage/error.hpp"
 
+#include "vts-libs/vts0/basetypes.hpp"
 #include "vts-libs/vts0/driver.hpp"
 #include "vts-libs/vts0/support.hpp"
 #include "vts-libs/vts0/tileop.hpp"
@@ -94,7 +95,7 @@ class Vts0Driver : public DriverWrapper
 {
 public:
     Vts0Driver(const vts0::Driver::pointer &driver)
-        : driver_(driver)
+        : DriverWrapper(DatasetProvider::vtsLegacy), driver_(driver)
     {}
 
     virtual vs::Resources resources() const {
@@ -143,9 +144,12 @@ void Vts0Driver::handle(Sink sink, const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openVts0(const std::string &path)
+DriverWrapper::pointer openVts0(const OpenInfo &openInfo
+                                , const OpenOptions&
+                                , DeliveryCache&
+                                , const DeliveryCache::Callback&)
 {
     return std::make_shared<Vts0Driver>
         (std::make_shared<vts0::TilarDriver>
-         (path, vts0::OpenMode::readOnly));
+         (openInfo.path, vts0::OpenMode::readOnly));
 }

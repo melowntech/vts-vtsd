@@ -27,10 +27,18 @@
 #ifndef libvtslibs_http_vts0_driver_hpp_included_
 #define libvtslibs_http_vts0_driver_hpp_included_
 
-#include "vts-libs/vts0/basetypes.hpp"
-
 #include "../driver.hpp"
+#include "../cache.hpp"
 
-DriverWrapper::pointer openVts0(const std::string &path);
+DriverWrapper::pointer openVts0(const OpenInfo &openInfo
+                                , const OpenOptions&
+                                , DeliveryCache&
+                                , const DeliveryCache::Callback&);
+
+/** Use default path splitting.
+ */
+inline bool vts0SplitFilePath(const boost::filesystem::path&, SplitPath&) {
+    return false;
+}
 
 #endif // libvtslibs_http_vts0_driver_hpp_included_

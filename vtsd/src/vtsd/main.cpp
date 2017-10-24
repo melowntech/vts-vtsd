@@ -112,8 +112,6 @@ private:
     void handlePlain(const fs::path &filePath, const http::Request &request
                      , Sink sink, const LocationConfig &location);
 
-    bool tryOpen(const fs::path &filePath);
-
     void configuration(po::options_description &cmdline
                        , po::options_description &config
                        , po::positional_options_description &pd);
@@ -329,7 +327,7 @@ service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
-    deliveryCache_ = boost::in_place(coreThreadCount_, openOptions_);
+    deliveryCache_ = boost::in_place(coreThreadCount_);
 
     http_ = boost::in_place();
     http_->serverHeader(utility::format
@@ -382,18 +380,6 @@ void sendListing(const fs::path &path, Sink &sink
     sink.listing(listing);
 }
 
-bool Daemon::tryOpen(const fs::path &filePath)
-{
-    try {
-        deliveryCache_->get(filePath.string());
-    } catch (...) {
-        // could not open dataset
-        return false;
-    }
-    // dataset opened -> fine
-    return true;
-}
-
 void Daemon::handle(const fs::path &filePath
                     , const http::Request &request
                     , const http::ServerSink::pointer &sink
@@ -439,11 +425,17 @@ void Daemon::handlePlain(const fs::path &filePath, const http::Request&
     }
 }
 
+
+
 void Daemon::handleDataset(const fs::path &filePath, const http::Request&
                            , Sink sink, const LocationConfig &location)
 {
-    const auto parent(filePath.parent_path());
-    const auto file(filePath.filename());
+    const auto openOptions(OpenOptions(openOptions_)
+                           .setDatasetProvider( location.enableDataset));
+
+    fs::path parent;
+    fs::path file;
+    std::tie(parent, file) = openOptions.splitFilePath(filePath);
 
     deliveryCache_->get
         (parent.string()
@@ -507,7 +499,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
                     return sink.error
                         (utility::makeError<NotFound>("No such dataset"));
                 }
-            });
+            }, openOptions);
         } catch (const ListContent &lc) {
             if (location.enableListing) {
                 // directory and we have enabled browser -> directory listing
@@ -537,7 +529,7 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
             sink.error
                 (utility::makeError<NotFound>("Domain error"));
         }
-    });
+    }, openOptions);
 }
 
 void Daemon::handlePrefix(const LocationConfig &location

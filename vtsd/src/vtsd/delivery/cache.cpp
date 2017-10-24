@@ -24,26 +24,34 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <future>
 #include <mutex>
 #include <thread>
 #include <algorithm>
 
-#include <boost/asio.hpp>
 #include <boost/logic/tribool.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/chrono/duration.hpp>
 #include <boost/utility/in_place_factory.hpp>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/composite_key.hpp>
 
 #include "utility/rlimit.hpp"
 #include "utility/enum-io.hpp"
+#include "utility/magic.hpp"
 
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/storage/io.hpp"
 
+#include "../config-io.hpp"
 #include "./cache.hpp"
 #include "./vts/driver.hpp"
 #include "./vts0/driver.hpp"
+#include "./slpk/driver.hpp"
 
 namespace asio = boost::asio;
 namespace bs = boost::system;
@@ -151,10 +159,8 @@ typedef std::map<utility::FileId, Record> Drivers;
 
 class DeliveryCache::Detail : boost::noncopyable {
 public:
-    Detail(DeliveryCache &cache, unsigned int threadCount
-           , const vts::OpenOptions &openOptions)
-        : cache_(cache), openOptions_(openOptions)
-        , maintenanceTimer_(ios_)
+    Detail(DeliveryCache &cache, unsigned int threadCount)
+        : cache_(cache), maintenanceTimer_(ios_)
     {
         cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
         cleanupLimit_.memory
@@ -166,21 +172,24 @@ public:
 
     ~Detail() { stop(); }
 
-    Driver get(const std::string &path);
-
     void get(const std::string &path, const Callback &callback
-             , boost::tribool checkForChange = boost::indeterminate);
+             , const OpenOptions &openOptions
+             , boost::tribool checkForChange);
+
+    void post(const DeliveryCache::Callback &callback
+              , const std::function<void()> &callable);
 
 private:
-    void open(Record &record, bool forcedReopen);
+    void open(Record &record, const OpenOptions &openOptions);
     void finishOpen(Record &record, const Expected &value);
 
     void get(std::unique_lock<std::mutex> &lock
              , const std::string &path, const utility::FileId &fid
              , Drivers::iterator idrivers
              , const Callback &callback
-             , const boost::optional<Record::Status> &status = boost::none
-             , boost::tribool checkForChange = boost::indeterminate);
+             , OpenOptions openOptions
+             , const boost::optional<Record::Status> &status
+             , boost::tribool checkForChange);
 
     void start(std::size_t count);
     void stop();
@@ -190,7 +199,6 @@ private:
     void check();
 
     DeliveryCache &cache_;
-    const vts::OpenOptions openOptions_;
 
     vs::Resources cleanupLimit_;
 
@@ -205,6 +213,9 @@ private:
     // cache
     std::mutex mutex_;
     Drivers drivers_;
+
+    // mime detector
+    utility::Magic magic_;
 };
 
 void DeliveryCache::Detail::start(std::size_t count)
@@ -288,19 +299,69 @@ void DeliveryCache::Detail::startMaintenance()
     });
 }
 
-DeliveryCache::Driver openDriver(const std::string &path
+namespace {
+
+struct Opener {
+    const OpenInfo &openInfo;
+    const OpenOptions &openOptions;
+    DeliveryCache &cache;
+    const DeliveryCache::Callback &callback;
+
+    DatasetProvider providers;
+
+    Opener(const OpenInfo &openInfo, const OpenOptions &openOptions
+           , DeliveryCache &cache, const DeliveryCache::Callback &callback)
+        : openInfo(openInfo), openOptions(openOptions), cache(cache)
+        , callback(callback), providers(openOptions.datasetProvider)
+    {}
+
+    template <DatasetProvider::value_type checkProvider, typename OpenDriver>
+    boost::optional<DeliveryCache::Driver> open(const OpenDriver &openDriver)
+    {
+        LOG(info1)
+            << openInfo.path << ": Trying to open "
+            << DatasetProvider(checkProvider)
+            << " out of " << providers << ".";
+        if (!openOptions.datasetProvider.enabled(checkProvider)) { return {}; }
+
+        // unset flag(s) for this provider
+        providers.unset(checkProvider);
+
+        if (providers) {
+            // this is not the last provider
+            try {
+                return openDriver(openInfo, openOptions, cache, callback);
+            } catch (vs::NoSuchTileSet) {
+                return boost::none;
+            }
+        }
+
+        // last configured provider
+        return openDriver(openInfo, openOptions, cache, callback);
+    }
+};
+
+} // namespace
+
+DeliveryCache::Driver openDriver(const OpenInfo &openInfo
                                  , const OpenOptions &openOptions
                                  , DeliveryCache &cache
                                  , const DeliveryCache::Callback &callback)
 {
-    LOG(info2) << "Opening driver for \"" << path << "\".";
-    // try VTS
-    try {
-        return openVts(path, openOptions, cache, callback);
-    } catch (vs::NoSuchTileSet) {}
+    LOG(info2) << "Opening driver for " << openInfo.path << " ["
+               << openInfo.mime << "].";
 
-    // finally try VTS0
-    return openVts0(path);
+    Opener opener(openInfo, openOptions, cache, callback);
+
+    if (auto driver = opener.open<DatasetProvider::vts>(openVts)) {
+        return *driver;
+    }
+
+    if (auto driver = opener.open<DatasetProvider::vtsLegacy>(openVts0)) {
+        return *driver;
+    }
+
+    return *opener.open<DatasetProvider::slpk>(openSlpk);
 }
 
 void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
@@ -342,25 +403,18 @@ void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
     }
 }
 
-void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
+void DeliveryCache::Detail::open(Record &record
+                                 , const OpenOptions &openOptions)
 {
-    ios_.post([this, &record, forcedReopen]() mutable
+    ios_.post([this, &record, openOptions]() mutable
     {
-        const auto dispatch([this](CallbackList &callbacks
-                                   , const Expected &value)
-        {
-            for (const auto &callback : callbacks) {
-                // dispatch in thread pool
-                ios_.post([callback, value]() { callback(value); });
-            }
-        });
+        // TODO: do not crash on invalid file
+        const auto mime(magic_.mime(record.path));
 
         try {
             // open driver
             auto driver
-                (openDriver(record.path
-                            , OpenOptions(openOptions_, forcedReopen)
-                            , cache_
+                (openDriver(OpenInfo(record.path, mime), openOptions, cache_
                             , [this, &record](const Expected &value)
                             {
                                 finishOpen(record, value);
@@ -376,9 +430,8 @@ void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
     });
 }
 
-DeliveryCache::DeliveryCache(unsigned int threadCount
-                             , const vts::OpenOptions &openOptions)
-    : workers_(new Detail(*this, threadCount, openOptions))
+DeliveryCache::DeliveryCache(unsigned int threadCount)
+    : workers_(new Detail(*this, threadCount))
 {}
 
 DeliveryCache::~DeliveryCache() {}
@@ -387,10 +440,11 @@ void DeliveryCache::Detail
 ::get(std::unique_lock<std::mutex> &lock
       , const std::string &path, const utility::FileId &fid
       , Drivers::iterator idrivers, const Callback &callback
+      , OpenOptions openOptions
       , const boost::optional<Record::Status> &status
       , boost::tribool checkForChange)
 {
-    bool forcedReopen(false);
+    openOptions.forcedReopen = false;
 
     if (idrivers != drivers_.end()) {
         // record found
@@ -406,6 +460,7 @@ void DeliveryCache::Detail
 
                 // unlock and call callback
                 lock.unlock();
+
                 callback(driver);
             }
             // done here
@@ -431,7 +486,7 @@ void DeliveryCache::Detail
             // dataset has been externally changed, drop driver
             LOG(info1) << "Scheduling outdated driver reopen.";
             record.prepareReopen();
-            forcedReopen = true;
+            openOptions.forcedReopen = true;
             // schedule reopen
             break;
         }
@@ -439,6 +494,8 @@ void DeliveryCache::Detail
         // create new entry and grab reference to it
         idrivers = drivers_.insert(Drivers::value_type(fid, Record(path)))
             .first;
+        // force recursive reopen on change
+        openOptions.forcedReopen = true;
     }
 
     // remember callback
@@ -446,90 +503,55 @@ void DeliveryCache::Detail
 
     // call open unlocked
     lock.unlock();
-    open(idrivers->second, forcedReopen);
+    open(idrivers->second, openOptions);
 }
 
 void DeliveryCache::Detail::get(const std::string &path
                                 , const Callback &callback
+                                , const OpenOptions &openOptions
                                 , boost::tribool checkForChange)
 {
     const auto fid(utility::FileId::from(path));
 
     std::unique_lock<std::mutex> guard(mutex_);
     auto idrivers(drivers_.find(fid));
-    get(guard, path, fid, idrivers, callback, boost::none, checkForChange);
+    get(guard, path, fid, idrivers, callback, openOptions
+        , boost::none, checkForChange);
+}
+
+void DeliveryCache::Detail::post(const DeliveryCache::Callback &callback
+                                 , const std::function<void()> &callable)
+{
+    ios_.post([=]()
+    {
+        try {
+            callable();
+        } catch (...) {
+            callback(std::current_exception());
+        }
+    });
 }
 
 namespace {
 
-template <typename T>
-class Promise {
-public:
-    Promise() = default;
-    Promise(const Promise &o) : p_(std::move(o.promise())) {}
-
-    std::promise<T>& promise() const {
-        return const_cast<std::promise<T>&>(p_);
-    }
-
-private:
-    std::promise<T> p_;
-};
+boost::tribool checkForChange(const OpenOptions &openOptions)
+{
+    if (openOptions.forcedReopen) { return true; }
+    return boost::indeterminate;
+}
 
 } // namespace
 
-DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
-{
-    const auto fid(utility::FileId::from(path));
-    std::unique_lock<std::mutex> guard(mutex_);
-    auto idrivers(drivers_.find(fid));
-
-    boost::optional<Record::Status> status;
-
-    if (idrivers != drivers_.end()) {
-        auto &record(idrivers->second);
-        switch (auto s = record.status()) {
-        case Record::Status::ready:
-            // fine
-            record.update();
-            return record.driver;
-
-        case Record::Status::invalid:
-            throw vs::NoSuchTileSet("(cached) No such tileset.");
-
-        case Record::Status::outdated:
-        case Record::Status::pending:
-            // either waiting for pending open or underlying dataset has been
-            // changed, need to wait for driver re/open
-            status = s;
-            break;
-        }
-    }
-
-    // need to open or wait for a pending open
-    Promise<Driver> promise;
-    auto future(promise.promise().get_future());
-
-    get(guard, path, fid, idrivers
-        , [promise](const Expected &driver)
-    {
-        driver.get(promise.promise());
-    }, status);
-
-    // wait without holding lock
-    auto value(future.get());
-    return value;
-}
-
 void DeliveryCache::get(const std::string &path, const Callback &callback
-                        , bool forcedReopen)
+                        , const OpenOptions &openOptions)
 {
-    workers_->get(path, callback, forcedReopen);
+    workers_->get(path, callback, openOptions, checkForChange(openOptions));
 }
 
-DeliveryCache::Driver DeliveryCache::get(const std::string &path)
+void DeliveryCache::post(const DeliveryCache::Callback &callback
+                         , const std::function<void()> &callable)
 {
-    return workers_->get(path);
+    workers_->post(callback, callable);
 }
 
 namespace {
@@ -648,4 +670,21 @@ void DeliveryCache::Detail::check()
     for (const auto &rw : toRemove) {
         if (!rw.reopened()) { erase(rw.idrivers); }
     }
+}
+
+SplitPath OpenOptions::splitFilePath(const boost::filesystem::path &filePath)
+    const
+{
+    SplitPath sp;
+    if (datasetProvider.enabled(DatasetProvider::vts)
+        && vtsSplitFilePath(filePath, sp)) { return sp; }
+
+    if (datasetProvider.enabled(DatasetProvider::vtsLegacy)
+        && vts0SplitFilePath(filePath, sp)) { return sp; }
+
+    if (datasetProvider.enabled(DatasetProvider::slpk)
+        && slpkSplitFilePath(filePath, sp)) { return sp; }
+
+    // default
+    return SplitPath(filePath.parent_path(), filePath.filename());
 }

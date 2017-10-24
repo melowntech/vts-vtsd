@@ -283,11 +283,13 @@ class VtsTileSet : public DriverWrapper
 public:
     VtsTileSet(const std::string &path
                , const vtslibs::vts::OpenOptions &openOptions)
-        : delivery_(vts::Delivery::open(path, openOptions))
+        : DriverWrapper(DatasetProvider::vts)
+        , delivery_(vts::Delivery::open(path, openOptions))
     {}
 
     VtsTileSet(std::shared_ptr<vts::Driver> driver)
-        : delivery_(vts::Delivery::open(std::move(driver)))
+        : DriverWrapper(DatasetProvider::vts)
+        , delivery_(vts::Delivery::open(std::move(driver)))
     {}
 
     virtual vs::Resources resources() const {
@@ -464,7 +466,8 @@ class VtsStorage : public DriverWrapper
 {
 public:
     VtsStorage(vts::Storage &&storage)
-        : storage_(std::move(storage))
+        : DriverWrapper(DatasetProvider::vts)
+        , storage_(std::move(storage))
     {}
 
     virtual vs::Resources resources() const {
@@ -539,7 +542,8 @@ class VtsStorageView : public DriverWrapper
 {
 public:
     VtsStorageView(vts::StorageView storageView)
-        : storageView_(std::move(storageView)), mapConfig_(storageView_)
+        : DriverWrapper(DatasetProvider::vts)
+        , storageView_(std::move(storageView)), mapConfig_(storageView_)
     {}
 
     virtual vs::Resources resources() const {
@@ -599,7 +603,8 @@ class VtsTileIndex : public DriverWrapper
 {
 public:
     VtsTileIndex(const fs::path &path)
-        : path_(path), stat_(vs::FileStat::stat(path))
+        : DriverWrapper(DatasetProvider::vts)
+        , path_(path), stat_(vs::FileStat::stat(path))
     {
         // load tile index
         ti_.load(path);
@@ -725,7 +730,7 @@ void VtsTileIndex::handle(Sink sink, const std::string &path
 
 template <typename CallbackType>
 void asyncOpenStorage(const fs::path &path, DeliveryCache &cache
-                      , CallbackType &callback, bool forcedReopen)
+                      , CallbackType &callback, const OpenOptions &openOptions)
 {
     cache.get(path.c_str(), [callback](const DeliveryCache::Expected &value)
     {
@@ -734,19 +739,20 @@ void asyncOpenStorage(const fs::path &path, DeliveryCache &cache
         } catch (...) {
             callback->error(std::current_exception());
         }
-    }, forcedReopen);
+    }, openOptions);
 }
 
 DriverWrapper::pointer
 openStorageView(const std::string &path
-                , DeliveryCache &cache, bool forcedReopen
+                , DeliveryCache &cache, const OpenOptions &openOptions
                 , const DeliveryCache::Callback &callback)
 {
     struct StorageViewOpenCallback : vts::StorageViewOpenCallback {
         StorageViewOpenCallback(DeliveryCache &cache
                                 , const DeliveryCache::Callback &callback
-                                , bool forcedReopen)
-            : cache(cache), callback(callback), forcedReopen(forcedReopen)
+                                , const OpenOptions &openOptions)
+            : cache(cache), callback(callback)
+            , openOptions(openOptions)
         {}
 
         virtual void error(const std::exception_ptr &exc) {
@@ -763,17 +769,17 @@ openStorageView(const std::string &path
                                  , const vts::StorageOpenCallback::pointer
                                  &storageOpenCallback)
         {
-            asyncOpenStorage(path, cache, storageOpenCallback, forcedReopen);
+            asyncOpenStorage(path, cache, storageOpenCallback, openOptions);
         }
 
         DeliveryCache &cache;
         const DeliveryCache::Callback callback;
-        bool forcedReopen;
+        const OpenOptions openOptions;
     };
 
     // async open
     vts::openStorageView(path, std::make_shared<StorageViewOpenCallback>
-                         (cache, callback, forcedReopen));
+                         (cache, callback, openOptions));
 
     // nothing available so far
     return {};
@@ -787,8 +793,8 @@ openTileSet(const std::string &path
     struct DriverOpenCallback : vts::DriverOpenCallback {
         DriverOpenCallback(DeliveryCache &cache
                            , const DeliveryCache::Callback &callback
-                           , bool forcedReopen)
-            : cache(cache), callback(callback), forcedReopen(forcedReopen)
+                           , const OpenOptions &openOptions)
+            : cache(cache), callback(callback), openOptions(openOptions)
         {}
 
         virtual void error(const std::exception_ptr &exc) {
@@ -804,7 +810,7 @@ openTileSet(const std::string &path
                                  , const vts::StorageOpenCallback::pointer
                                  &storageOpenCallback)
         {
-            asyncOpenStorage(path, cache, storageOpenCallback, forcedReopen);
+            asyncOpenStorage(path, cache, storageOpenCallback, openOptions);
         }
 
         // NB: open options are ignore since we have our own
@@ -822,18 +828,18 @@ openTileSet(const std::string &path
                 } catch (...) {
                     driverOpenCallback->error(std::current_exception());
                 }
-            }, forcedReopen);
+            }, openOptions);
         }
 
         DeliveryCache &cache;
         const DeliveryCache::Callback callback;
-        bool forcedReopen;
+        const OpenOptions openOptions;
     };
 
     // async open
     vts::openTilesetDriver(path, openOptions.openOptions
                            , std::make_shared<DriverOpenCallback>
-                           (cache, callback, openOptions.forcedReopen));
+                           (cache, callback, openOptions));
 
     // nothing available so far
     return {};
@@ -841,12 +847,14 @@ openTileSet(const std::string &path
 
 } // namespace
 
-DriverWrapper::pointer openVts(const std::string &path
+DriverWrapper::pointer openVts(const OpenInfo &openInfo
                                , const OpenOptions &openOptions
                                , DeliveryCache &cache
                                , const DeliveryCache::Callback &callback)
 {
-    switch (vts::datasetType(path)) {
+    const auto &path(openInfo.path.string());
+
+    switch (vts::datasetType(path, openInfo.mime)) {
     case vts::DatasetType::TileSet:
         return openTileSet(path, cache, openOptions, callback);
 
@@ -855,7 +863,7 @@ DriverWrapper::pointer openVts(const std::string &path
 
     case vts::DatasetType::StorageView:
         return openStorageView
-            (path, cache, openOptions.forcedReopen, callback);
+            (path, cache, openOptions, callback);
 
     case vts::DatasetType::TileIndex:
         return std::make_shared<VtsTileIndex>(path);

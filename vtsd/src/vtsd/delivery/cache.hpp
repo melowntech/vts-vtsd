@@ -32,13 +32,6 @@
 #include <functional>
 #include <vector>
 
-#include <boost/multi_index_container.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/identity.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/mem_fun.hpp>
-#include <boost/multi_index/composite_key.hpp>
-
 #include "utility/expected.hpp"
 #include "utility/filesystem.hpp"
 
@@ -46,20 +39,41 @@
 
 #include "./driver.hpp"
 
-struct OpenOptions {
-    vtslibs::vts::OpenOptions openOptions;
-    bool forcedReopen;
+typedef std::pair<boost::filesystem::path, boost::filesystem::path> SplitPath;
 
-    OpenOptions(const vtslibs::vts::OpenOptions &openOptions
-                , bool forcedReopen)
-        : openOptions(openOptions), forcedReopen(forcedReopen)
-    {}
+struct OpenOptions {
+    /** set to true if we are getting driver as a result of another driver
+     *  reopen
+     */
+    vtslibs::vts::OpenOptions openOptions;
+    boost::tribool forcedReopen;
+    DatasetProvider datasetProvider;
+
+    OpenOptions() : forcedReopen(false), datasetProvider() {}
+    explicit OpenOptions(const vtslibs::vts::OpenOptions &openOptions)
+        : openOptions(openOptions), forcedReopen(boost::indeterminate)
+        , datasetProvider() {}
+    explicit OpenOptions(boost::tribool forcedReopen)
+        : forcedReopen(forcedReopen), datasetProvider() {}
+    explicit OpenOptions(DatasetProvider datasetProvider)
+        : forcedReopen(boost::indeterminate)
+        , datasetProvider(datasetProvider) {}
+
+    OpenOptions& setOpenOptions(const vtslibs::vts::OpenOptions &v) {
+        openOptions = v; return *this; }
+    OpenOptions& setForcedReopen(boost::tribool v) {
+        forcedReopen = v; return *this;
+    }
+    OpenOptions& setDatasetProvider(const DatasetProvider &v) {
+        datasetProvider = v; return *this;
+    }
+
+    SplitPath splitFilePath(const boost::filesystem::path &filePath) const;
 };
 
 class DeliveryCache : boost::noncopyable {
 public:
-    DeliveryCache(unsigned int threadCount
-                  , const vtslibs::vts::OpenOptions &openOptions);
+    DeliveryCache(unsigned int threadCount);
     ~DeliveryCache();
 
     typedef DriverWrapper::pointer Driver;
@@ -67,24 +81,21 @@ public:
     typedef std::function<void(const Expected&)> Callback;
     typedef std::vector<Callback> CallbackList;
 
-    /** Calls callback with driver for given path. Call is immediated if driver
+    /** Calls callback with driver for given path. Call is immediate if driver
      *  is already open or postponed until driver is available.
      *
      * \param path filesystem path of dataset to open
      * \param callback completion handler
-     *
-     * \param forcedReopen set to true if we are getting driver as a result of
-     *                     another driver reopen
      */
     void get(const std::string &path, const Callback &callback
-             , bool forcedReopen = false);
+             , const OpenOptions &options);
 
-    /** Returns driver for given path. Blocking call.
+    /** Use cache's async mechanism to run dunction at background.
      */
-    Driver get(const std::string &path);
+    void post(const DeliveryCache::Callback &callback
+              , const std::function<void()> &callable);
 
 private:
-
     class Detail;
     std::unique_ptr<Detail> workers_;
 };

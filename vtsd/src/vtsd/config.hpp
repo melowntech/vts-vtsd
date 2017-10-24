@@ -41,6 +41,30 @@
 
 namespace vs = vtslibs::storage;
 
+/** Dataset provider.
+ */
+struct DatasetProvider {
+    typedef std::uint32_t value_type;
+    enum : value_type {
+        none = 0x00
+        , vts = 0x01
+        , vtsLegacy = 0x02
+        , slpk = 0x04
+    };
+
+    DatasetProvider(value_type value = none) : value(value) {}
+
+    value_type value;
+
+    bool enabled(DatasetProvider::value_type enabled) const {
+        return value & enabled;
+    }
+
+    void unset(DatasetProvider::value_type v) { value &= ~v; }
+
+    operator bool() const { return value; }
+};
+
 struct LocationConfig {
     typedef std::vector<LocationConfig> list;
     typedef boost::match_results<std::string::const_iterator> MatchResult;
@@ -51,7 +75,7 @@ struct LocationConfig {
 
     std::string location;
     Match match;
-    bool enableDataset;
+    DatasetProvider enableDataset;
     bool enableBrowser;
     bool enableListing;
     vs::SupportFile::Vars vars;
@@ -64,7 +88,8 @@ struct LocationConfig {
     boost::optional<boost::regex> regex;
 
     LocationConfig()
-        : match(Match::prefix), enableDataset(true)
+        : match(Match::prefix)
+        , enableDataset(DatasetProvider::vts | DatasetProvider::vtsLegacy)
         , enableBrowser(false), enableListing(false)
     {}
 

@@ -2,6 +2,7 @@
 define_module(BINARY vtsd
   DEPENDS
   vts-libs-core>=2.4 http>=1.3 service>=1.7
+  slpk>=1.1
 
   Boost_SERIALIZATION
   Boost_FILESYSTEM
@@ -15,6 +16,8 @@ set(vtsd_SOURCES
 
   delivery/vts/driver.hpp delivery/vts/driver.cpp
   delivery/vts0/driver.hpp delivery/vts0/driver.cpp
+  delivery/slpk/driver.hpp delivery/slpk/driver.cpp
+
   delivery/driver.hpp
   delivery/cache.hpp delivery/cache.cpp
 

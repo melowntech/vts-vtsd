@@ -40,6 +40,16 @@
 
 namespace vs = vtslibs::storage;
 
+struct OpenInfo {
+    boost::filesystem::path path;
+    std::string mime;
+
+    OpenInfo(const boost::filesystem::path &path
+             , const std::string &mime)
+        : path(path), mime(mime)
+    {}
+};
+
 /** Can be thrown by handler to force redirect.
  */
 struct ListContent {
@@ -78,7 +88,9 @@ class DriverWrapper : boost::noncopyable {
 public:
     typedef std::shared_ptr<DriverWrapper> pointer;
 
-    DriverWrapper() {}
+    DriverWrapper(const DatasetProvider &datasetProvider)
+        : datasetProvider_(datasetProvider)
+    {}
     virtual ~DriverWrapper() {}
 
     virtual vs::Resources resources() const = 0;
@@ -96,6 +108,11 @@ public:
                             , const boost::optional<long> &maxAge
                             = boost::none);
     Sink::FileInfo fileinfo(const vs::SupportFile &file, FileClass fc);
+
+    const DatasetProvider& datasetProvider() const { return datasetProvider_; }
+
+private:
+    const DatasetProvider datasetProvider_;
 };
 
 // inlines
