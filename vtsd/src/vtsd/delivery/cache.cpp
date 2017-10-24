@@ -444,6 +444,8 @@ void DeliveryCache::Detail
         // create new entry and grab reference to it
         idrivers = drivers_.insert(Drivers::value_type(fid, Record(path)))
             .first;
+        // force recursive reopen on change
+        forcedReopen = true;
     }
 
     // remember callback
@@ -480,6 +482,12 @@ public:
 private:
     std::promise<T> p_;
 };
+
+boost::tribool checkForChange(bool forcedReopen)
+{
+    if (forcedReopen) { return true; }
+    return boost::indeterminate;
+}
 
 } // namespace
 
@@ -529,7 +537,7 @@ DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
 void DeliveryCache::get(const std::string &path, const Callback &callback
                         , bool forcedReopen)
 {
-    workers_->get(path, callback, forcedReopen);
+    workers_->get(path, callback, checkForChange(forcedReopen));
 }
 
 DeliveryCache::Driver DeliveryCache::get(const std::string &path)
