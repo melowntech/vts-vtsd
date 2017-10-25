@@ -95,8 +95,7 @@ DriverWrapper::pointer openSlpk(const OpenInfo &openInfo
     {
         // TODO: handle exceptions
 
-        // TODO: pass mime type to archive when implemented
-        slpk::Archive reader(openInfo.path);
+        slpk::Archive reader(openInfo.path, openInfo.mime);
         callback(DriverWrapper::pointer
                  (std::make_shared<SlpkDriver>(std::move(reader))));
     });
@@ -107,6 +106,9 @@ namespace {
 std::array<std::string, 2> extensions{{ ".slpk", ".spk" }};
 } // namespace constant
 
+/** Tries to find *.slpk or *.spk filename in the path and split it after this
+  * filename if found.
+ */
 bool slpkSplitFilePath(const boost::filesystem::path &filePath, SplitPath &sp)
 {
     const auto &path(filePath.string());
@@ -114,8 +116,6 @@ bool slpkSplitFilePath(const boost::filesystem::path &filePath, SplitPath &sp)
     const auto end(path.end());
 
     for (const auto &ext : extensions) {
-        LOG(info4) << "ext: " << ext;
-
         auto range(ba::ifind_first(path, ext));
         if (std::begin(range) == std::end(range)) { continue; }
 
@@ -131,9 +131,6 @@ bool slpkSplitFilePath(const boost::filesystem::path &filePath, SplitPath &sp)
             sp.first = std::string(begin, erange);
             sp.second = std::string(erange, end);
         }
-
-        LOG(info4) << "split(" << filePath
-                   << "): " << sp.first << "; " << sp.second;
         return true;
     }
 
