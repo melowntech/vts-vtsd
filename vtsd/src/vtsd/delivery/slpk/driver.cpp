@@ -30,6 +30,8 @@
 #include <boost/utility/in_place_factory.hpp>
 #include <boost/algorithm/string/find.hpp>
 
+#include "utility/uri.hpp"
+
 #include "slpk/reader.hpp"
 
 #include "vts-libs/vts/support.hpp"
@@ -56,10 +58,21 @@ public:
         : DriverWrapper(DatasetProvider::slpk)
         , reader_(std::move(reader))
     {
+        // build scene server info
+        std::tie(sli_, sceneServerConfig_) = reader_.sceneServerConfig();
+
+        // build layer prefix
+        layerPrefix_
+            = utility::Uri::joinAndRemoveDotSegments("/", sli_.href)
+            .substr(1);
+
+        LOG(info4) << "layerPrefix: <" << layerPrefix_ << ">.";
     }
 
-    // TODO: implement me
-    virtual vs::Resources resources() const { return {}; }
+    virtual vs::Resources resources() const {
+        return { 1, 0 };
+    }
+
     virtual bool externallyChanged() const { return false; }
 
     virtual void handle(Sink sink, const std::string &path
@@ -67,17 +80,42 @@ public:
 
 private:
     slpk::Archive reader_;
+    std::string name_;
+
+    slpk::SceneLayerInfo sli_;
+    std::string sceneServerConfig_;
+    std::string layerPrefix_;
 };
 
 void SlpkDriver::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
 {
-    (void) sink;
-    (void) path;
     (void) config;
 
-    // wtf?
-    sink.error(utility::makeError<NotFound>("Unknown file."));
+    if (path == ".") {
+        // scene server config
+        return sink.content
+            (sceneServerConfig_
+             , Sink::FileInfo("application/json", -1)
+             .setFileClass(FileClass::config));
+    }
+
+    if (!ba::starts_with(path, layerPrefix_)) {
+        return sink.error(utility::makeError<NotFound>("Unknown file."));
+    }
+
+    auto localPath(path.substr(layerPrefix_.size()));
+
+    LOG(info4) << "localPath: <" << localPath << ">.";
+
+    auto is(reader_.rawistream(path));
+
+    // TODO: detect content type
+
+    // TODO: detect gzip encoding by peeking at first byte
+    //       -> Transfer-Encoding
+
+    return sink.content(is, "application/octet-stream", FileClass::data);
 }
 
 } // namespace
@@ -95,7 +133,8 @@ DriverWrapper::pointer openSlpk(const OpenInfo &openInfo
     {
         // TODO: handle exceptions
 
-        slpk::Archive reader(openInfo.path, openInfo.mime);
+        slpk::Archive reader
+            (openInfo.path, openInfo.mime);
         callback(DriverWrapper::pointer
                  (std::make_shared<SlpkDriver>(std::move(reader))));
     });
@@ -129,7 +168,7 @@ bool slpkSplitFilePath(const boost::filesystem::path &filePath, SplitPath &sp)
         } else {
             // keep slast at the start of file
             sp.first = std::string(begin, erange);
-            sp.second = std::string(erange, end);
+            sp.second = std::string(eerange, end);
         }
         return true;
     }

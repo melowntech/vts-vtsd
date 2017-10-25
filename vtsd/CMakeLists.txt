@@ -60,3 +60,6 @@ endif()
 
 # project
 add_subdirectory(src/vtsd)
+
+# for testing
+add_subdirectory(src/utility/tools EXCLUDE_FROM_ALL)

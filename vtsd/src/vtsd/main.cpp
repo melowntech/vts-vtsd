@@ -41,6 +41,8 @@
 #include "utility/buildsys.hpp"
 #include "service/service.hpp"
 
+#include "roarchive/error.hpp"
+
 #include "http/http.hpp"
 
 #include "vts-libs/storage/fstreams.hpp"
@@ -520,6 +522,11 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
             }
 
         } catch (const vs::NoSuchFile &e) {
+            LOG(err1) << e.what();
+            sink.error
+                (utility::makeError<NotFound>("No such file"));
+
+        } catch (const roarchive::NoSuchFile &e) {
             LOG(err1) << e.what();
             sink.error
                 (utility::makeError<NotFound>("No such file"));
