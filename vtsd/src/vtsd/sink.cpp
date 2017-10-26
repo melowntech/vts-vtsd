@@ -200,31 +200,26 @@ private:
 std::size_t RoArchiveDataSource::read(char *buf, std::size_t size
                                       , std::size_t off)
 {
-    if (off != off) {
+    if (off != off_) {
         if (seekable_) {
             is_->get().seekg(off);
+            off_ = off;
         } else {
             LOGTHROW(err2, std::runtime_error)
                 << "This archive file is unseekable.";
         }
     }
 
-    // fix size
+    // fix size if too long
     {
         long end(off_ + size);
         if (end > size_) { size = size_ - off_; }
     }
 
-    LOG(info4)
-        << "About to read " << size << " bytes from stream.";
-
     is_->get().read(buf, size);
     auto read(is_->get().gcount());
 
-    LOG(info4)
-        << "Read " << read << " bytes from stream.";
-
-    off_ += off + read;
+    off_ = off + read;
     return read;
 }
 

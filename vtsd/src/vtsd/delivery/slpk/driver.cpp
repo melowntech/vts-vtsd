@@ -30,7 +30,7 @@
 #include <boost/utility/in_place_factory.hpp>
 #include <boost/algorithm/string/find.hpp>
 
-#include "utility/uri.hpp"
+#include "imgproc/imagesize.hpp"
 
 #include "slpk/reader.hpp"
 
@@ -54,25 +54,12 @@ namespace {
 class SlpkDriver : public DriverWrapper
 {
 public:
-    SlpkDriver(slpk::Archive &&reader)
-        : DriverWrapper(DatasetProvider::slpk)
-        , reader_(std::move(reader))
-    {
-        // build scene server info
-        std::tie(sli_, sceneServerConfig_) = reader_.sceneServerConfig();
+    SlpkDriver(slpk::Archive &&reader);
 
-        // build layer prefix
-        layerPrefix_
-            = utility::Uri::joinAndRemoveDotSegments("/", sli_.href)
-            .substr(1);
+    virtual vs::Resources resources() const { return { 1, 0 }; }
 
-        LOG(info4) << "layerPrefix: <" << layerPrefix_ << ">.";
-    }
-
-    virtual vs::Resources resources() const {
-        return { 1, 0 };
-    }
-
+    /** TODO: implement me
+     */
     virtual bool externallyChanged() const { return false; }
 
     virtual void handle(Sink sink, const std::string &path
@@ -84,8 +71,22 @@ private:
 
     slpk::SceneLayerInfo sli_;
     std::string sceneServerConfig_;
-    std::string layerPrefix_;
+
+    slpk::ApiFile::map fileMapping_;
 };
+
+SlpkDriver::SlpkDriver(slpk::Archive &&reader)
+    : DriverWrapper(DatasetProvider::slpk)
+    , reader_(std::move(reader))
+{
+    // build scene server info
+    {
+        std::ostringstream os;
+        sli_ = reader_.sceneServerConfig(os);
+        sceneServerConfig_ = os.str();
+    }
+    fileMapping_ = reader_.sceneServiceFileMapping();
+}
 
 void SlpkDriver::handle(Sink sink, const std::string &path
                         , const LocationConfig &config)
@@ -96,26 +97,33 @@ void SlpkDriver::handle(Sink sink, const std::string &path
         // scene server config
         return sink.content
             (sceneServerConfig_
-             , Sink::FileInfo("application/json", -1)
+             , Sink::FileInfo("application/json; charset=UTF-8", -1)
              .setFileClass(FileClass::config));
     }
 
-    if (!ba::starts_with(path, layerPrefix_)) {
+    const auto ffileMapping(fileMapping_.find(path));
+    if (ffileMapping == fileMapping_.end()) {
+        // not a mapped file
         return sink.error(utility::makeError<NotFound>("Unknown file."));
     }
 
-    auto localPath(path.substr(layerPrefix_.size()));
+    const auto &apiFile(ffileMapping->second);
 
-    LOG(info4) << "localPath: <" << localPath << ">.";
+    auto is(reader_.rawistream(apiFile.path));
 
-    auto is(reader_.rawistream(path));
+    // get content type
+    auto ct(apiFile.contentType);
+    if (ct.empty()) {
+        // binary by default
+        ct = "application/octet-stream";
+        if (!apiFile.gzipped) {
+            // guess from magic
+            auto detected(imgproc::imageMimeType(is->get()));
+            if (!detected.empty()) { ct = detected; }
+        }
+    }
 
-    // TODO: detect content type
-
-    // TODO: detect gzip encoding by peeking at first byte
-    //       -> Transfer-Encoding
-
-    return sink.content(is, "application/octet-stream", FileClass::data);
+    return sink.content(is, ct, FileClass::data, apiFile.gzipped);
 }
 
 } // namespace
