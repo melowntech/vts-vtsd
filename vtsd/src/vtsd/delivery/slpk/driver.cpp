@@ -84,20 +84,24 @@ void SlpkDriver::handle(Sink sink, const Request &request
 
     // get content type
     auto ct(apiFile->contentType);
+    auto te(apiFile->transferEncoding);
     if (ct.empty()) {
         // binary by default
         ct = "application/octet-stream";
-        if (apiFile->transferEncoding.empty()) {
+        if (is && te.empty()) {
             // guess from magic
             auto detected(imgproc::imageMimeType(is->get()));
             if (!detected.empty()) { ct = detected; }
         }
+    } else if (is && te.empty()) {
+        // try to detect gzip
+        auto head(is->get().peek());
+        if (head == 0x1f) { te = "gzip"; }
     }
 
     if (is) {
         // stream
-        return sink.content(is, ct, FileClass::data
-                            , apiFile->transferEncoding);
+        return sink.content(is, ct, FileClass::data, te);
     }
 
     // data (TODO: handle different transfer encoding)
