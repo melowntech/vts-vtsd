@@ -162,7 +162,7 @@ public:
     RoArchiveDataSource(const roarchive::IStream::pointer &is
                         , const std::string &contentType, FileClass fileClass
                         , const FileClassSettings *fileClassSettings
-                        , bool gzipped)
+                        , const std::string &trasferEncoding)
         : http::SinkBase::DataSource(true), is_(is)
         , size_(is_->size() ? *is_->size() : -1)
         , seekable_(is_->seekable()), off_()
@@ -171,8 +171,8 @@ public:
         fi_.contentType = contentType;
         fi_.maxAge = maxAge(fileClass, fileClassSettings);
 
-        if (gzipped) {
-            headers_.emplace_back("Content-Encoding", "gzip");
+        if (!trasferEncoding.empty()) {
+            headers_.emplace_back("Content-Encoding", trasferEncoding);
         }
     }
 
@@ -242,13 +242,13 @@ void Sink::content(const vs::IStream::pointer &stream
 }
 
 void Sink::content(const roarchive::IStream::pointer &stream
-                   , const std::string &contentType
-                   , FileClass fileClass, bool gzipped)
+                   , const std::string &contentType, FileClass fileClass
+                   , const std::string &trasferEncoding)
 {
     sink_->content(std::make_shared<RoArchiveDataSource>
                    (stream, contentType
                     , fileClass, &locationConfig_.fileClassSettings
-                    , gzipped));
+                    , trasferEncoding));
 }
 
 void Sink::content(const vs::SupportFile &data)

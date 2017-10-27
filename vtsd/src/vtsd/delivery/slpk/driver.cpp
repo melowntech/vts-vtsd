@@ -32,7 +32,7 @@
 
 #include "imgproc/imagesize.hpp"
 
-#include "slpk/reader.hpp"
+#include "slpk/restapi.hpp"
 
 #include "vts-libs/vts/support.hpp"
 #include "vts-libs/vts.hpp"
@@ -62,68 +62,49 @@ public:
      */
     virtual bool externallyChanged() const { return false; }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
 
 private:
-    slpk::Archive reader_;
+    slpk::RestApi api_;
     std::string name_;
-
-    slpk::SceneLayerInfo sli_;
-    std::string sceneServerConfig_;
-
-    slpk::ApiFile::map fileMapping_;
 };
 
 SlpkDriver::SlpkDriver(slpk::Archive &&reader)
     : DriverWrapper(DatasetProvider::slpk)
-    , reader_(std::move(reader))
+    , api_(std::move(reader))
+{}
+
+void SlpkDriver::handle(Sink sink, const Request &request
+                        , const LocationConfig &)
 {
-    // build scene server info
-    {
-        std::ostringstream os;
-        sli_ = reader_.sceneServerConfig(os);
-        sceneServerConfig_ = os.str();
-    }
-    fileMapping_ = reader_.sceneServiceFileMapping();
-}
-
-void SlpkDriver::handle(Sink sink, const std::string &path
-                        , const LocationConfig &config)
-{
-    (void) config;
-
-    if (path == ".") {
-        // scene server config
-        return sink.content
-            (sceneServerConfig_
-             , Sink::FileInfo("application/json; charset=UTF-8", -1)
-             .setFileClass(FileClass::config));
-    }
-
-    const auto ffileMapping(fileMapping_.find(path));
-    if (ffileMapping == fileMapping_.end()) {
-        // not a mapped file
-        return sink.error(utility::makeError<NotFound>("Unknown file."));
-    }
-
-    const auto &apiFile(ffileMapping->second);
-
-    auto is(reader_.rawistream(apiFile.path));
+    roarchive::IStream::pointer is;
+    const slpk::ApiFile *apiFile;
+    std::tie(is, apiFile) = api_.file(request.path);;
 
     // get content type
-    auto ct(apiFile.contentType);
+    auto ct(apiFile->contentType);
     if (ct.empty()) {
         // binary by default
         ct = "application/octet-stream";
-        if (!apiFile.gzipped) {
+        if (apiFile->transferEncoding.empty()) {
             // guess from magic
             auto detected(imgproc::imageMimeType(is->get()));
             if (!detected.empty()) { ct = detected; }
         }
     }
 
-    return sink.content(is, ct, FileClass::data, apiFile.gzipped);
+    if (is) {
+        // stream
+        return sink.content(is, ct, FileClass::data
+                            , apiFile->transferEncoding);
+    }
+
+    // data (TODO: handle different transfer encoding)
+    return sink.content
+        (apiFile->content
+         , Sink::FileInfo(apiFile->contentType, -1)
+         .setFileClass(FileClass::data));
 }
 
 } // namespace

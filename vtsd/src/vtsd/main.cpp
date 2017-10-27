@@ -427,9 +427,8 @@ void Daemon::handlePlain(const fs::path &filePath, const http::Request&
     }
 }
 
-
-
-void Daemon::handleDataset(const fs::path &filePath, const http::Request&
+void Daemon::handleDataset(const fs::path &filePath
+                           , const http::Request &request
                            , Sink sink, const LocationConfig &location)
 {
     const auto openOptions(OpenOptions(openOptions_)
@@ -445,7 +444,8 @@ void Daemon::handleDataset(const fs::path &filePath, const http::Request&
          mutable -> void
     {
         try {
-            value.get()->handle(sink, file.string(), location);
+            value.get()->handle
+                (sink, Request(file.string(), request.query), location);
         } catch (vs::NoSuchTileSet) {
             boost::system::error_code ec;
             auto status(fs::status(filePath, ec));

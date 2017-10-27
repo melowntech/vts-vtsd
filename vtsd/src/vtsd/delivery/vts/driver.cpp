@@ -300,7 +300,7 @@ public:
         return delivery_->externallyChanged();
     }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
 
     static std::shared_ptr<vts::Driver>
@@ -362,11 +362,11 @@ void tileFileStream(Sink &sink, const VtsFileInfo &info
     return sink.content(is, FileClass::data);
 }
 
-void VtsTileSet::handle(Sink sink, const std::string &path
+void VtsTileSet::handle(Sink sink, const Request &request
                         , const LocationConfig &config)
 {
     // we want internals
-    VtsFileInfo info(path, config, ExtraFlags::enableTilesetInternals);
+    VtsFileInfo info(request.path, config, ExtraFlags::enableTilesetInternals);
 
     switch (info.type) {
     case FileInfo::Type::definition: {
@@ -478,7 +478,7 @@ public:
         return storage_.externallyChanged();
     }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
 
     static vts::Storage asStorage(const DriverWrapper::pointer &driver);
@@ -501,17 +501,17 @@ vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
 }
 
 
-void VtsStorage::handle(Sink sink, const std::string &path
+void VtsStorage::handle(Sink sink, const Request &request
                         , const LocationConfig &config)
 {
-    VtsFileInfo info(path, config);
+    VtsFileInfo info(request.path, config);
 
-    if (path == constants::Config) {
+    if (request.path == constants::Config) {
         const auto &mp(mapConfig());
         return sink.content(mp.data, fileinfo(mp.stat, -1));
     }
 
-    if (path == constants::Dirs) {
+    if (request.path == constants::Dirs) {
         const auto &mp(mapConfig());
         return sink.content(mp.dirsData, fileinfo(mp.dirsStat, -1));
     }
@@ -525,7 +525,7 @@ void VtsStorage::handle(Sink sink, const std::string &path
     }
 
     if (info.support) {
-        if (path == constants::Self) {
+        if (request.path == constants::Self) {
             // enabled browser and asked to serve dir
             throw ListContent({ { "index.html" } });
         }
@@ -554,7 +554,7 @@ public:
         return storageView_.externallyChanged();
     }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
 
     /** We consider storage view a hot-content. I.e. it is always watched for
@@ -568,16 +568,16 @@ private:
     MapConfig mapConfig_;
 };
 
-void VtsStorageView::handle(Sink sink, const std::string &path
+void VtsStorageView::handle(Sink sink, const Request &request
                             , const LocationConfig &config)
 {
-    VtsFileInfo info(path, config);
+    VtsFileInfo info(request.path, config);
 
-    if (path == constants::Config) {
+    if (request.path == constants::Config) {
         return sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
     }
 
-    if (path == constants::Dirs) {
+    if (request.path == constants::Dirs) {
         return sink.content(mapConfig_.dirsData
                             , fileinfo(mapConfig_.dirsStat, -1));
     }
@@ -643,7 +643,7 @@ public:
         return stat_.changed(vs::FileStat::stat(path_));
     }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
 
     virtual bool hotContent() const { return false; }
@@ -667,10 +667,10 @@ const auto fullDebugMask([]() -> std::vector<char>
     return imgproc::png::serialize(vts::fullDebugMask(), 9);
 }());
 
-void VtsTileIndex::handle(Sink sink, const std::string &path
+void VtsTileIndex::handle(Sink sink, const Request &request
                           , const LocationConfig &config)
 {
-    VtsFileInfo info(path, config);
+    VtsFileInfo info(request.path, config);
 
     switch (info.type) {
     case FileInfo::Type::file:

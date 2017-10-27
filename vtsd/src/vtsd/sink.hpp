@@ -141,7 +141,8 @@ public:
      */
     void content(const roarchive::IStream::pointer &stream
                  , const std::string &contentType
-                 , FileClass fileClass, bool gzipped = false);
+                 , FileClass fileClass
+                 , const std::string &trasferEncoding = "");
 
     /** Tell client to look somewhere else.
      */
