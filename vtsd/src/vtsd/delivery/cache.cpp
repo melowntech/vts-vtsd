@@ -511,12 +511,17 @@ void DeliveryCache::Detail::get(const std::string &path
                                 , const OpenOptions &openOptions
                                 , boost::tribool checkForChange)
 {
-    const auto fid(utility::FileId::from(path));
+    try {
+        const auto fid(utility::FileId::from(path));
 
-    std::unique_lock<std::mutex> guard(mutex_);
-    auto idrivers(drivers_.find(fid));
-    get(guard, path, fid, idrivers, callback, openOptions
-        , boost::none, checkForChange);
+        std::unique_lock<std::mutex> guard(mutex_);
+        auto idrivers(drivers_.find(fid));
+        get(guard, path, fid, idrivers, callback, openOptions
+            , boost::none, checkForChange);
+    } catch (...) {
+        // forward error to callback
+        callback(std::current_exception());
+    }
 }
 
 void DeliveryCache::Detail::post(const DeliveryCache::Callback &callback

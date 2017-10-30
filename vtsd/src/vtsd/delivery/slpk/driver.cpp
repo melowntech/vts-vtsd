@@ -56,11 +56,11 @@ class SlpkDriver : public DriverWrapper
 public:
     SlpkDriver(slpk::Archive &&reader);
 
+    /** Report memory?
+     */
     virtual vs::Resources resources() const { return { 1, 0 }; }
 
-    /** TODO: implement me
-     */
-    virtual bool externallyChanged() const { return false; }
+    virtual bool externallyChanged() const { return api_.changed(); }
 
     virtual void handle(Sink sink, const Request &request
                         , const LocationConfig &config);
