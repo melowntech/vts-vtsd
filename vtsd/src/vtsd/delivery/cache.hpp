@@ -90,8 +90,12 @@ public:
      */
     Driver get(const std::string &path);
 
-private:
+    /** Use cache's async mechanism to run dunction at background.
+     */
+    void post(const DeliveryCache::Callback &callback
+              , const std::function<void()> &callable);
 
+private:
     class Detail;
     std::unique_ptr<Detail> workers_;
 };

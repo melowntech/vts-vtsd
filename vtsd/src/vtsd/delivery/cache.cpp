@@ -170,6 +170,9 @@ public:
     void get(const std::string &path, const Callback &callback
              , boost::tribool checkForChange = boost::indeterminate);
 
+    void post(const DeliveryCache::Callback &callback
+              , const std::function<void()> &callable);
+
 private:
     void open(Record &record, bool forcedReopen);
     void finishOpen(Record &record, const Expected &value);
@@ -439,83 +442,51 @@ void DeliveryCache::Detail::get(const std::string &path
                                 , const Callback &callback
                                 , boost::tribool checkForChange)
 {
-    const auto fid(utility::FileId::from(path));
+    try {
+        const auto fid(utility::FileId::from(path));
 
-    std::unique_lock<std::mutex> guard(mutex_);
-    auto idrivers(drivers_.find(fid));
-    get(guard, path, fid, idrivers, callback, boost::none, checkForChange);
+        std::unique_lock<std::mutex> guard(mutex_);
+        auto idrivers(drivers_.find(fid));
+        get(guard, path, fid, idrivers, callback, boost::none, checkForChange);
+    } catch (...) {
+        // forward error to callback
+        callback(std::current_exception());
+    }
+}
+
+void DeliveryCache::Detail::post(const DeliveryCache::Callback &callback
+                                 , const std::function<void()> &callable)
+{
+    ios_.post([=]()
+    {
+        try {
+            callable();
+        } catch (...) {
+            callback(std::current_exception());
+        }
+    });
 }
 
 namespace {
 
-template <typename T>
-class Promise {
-public:
-    Promise() = default;
-    Promise(const Promise &o) : p_(std::move(o.promise())) {}
-
-    std::promise<T>& promise() const {
-        return const_cast<std::promise<T>&>(p_);
-    }
-
-private:
-    std::promise<T> p_;
-};
+boost::tribool checkForChange(bool forcedReopen)
+{
+    if (forcedReopen) { return true; }
+    return boost::indeterminate;
+}
 
 } // namespace
-
-DeliveryCache::Driver DeliveryCache::Detail::get(const std::string &path)
-{
-    const auto fid(utility::FileId::from(path));
-    std::unique_lock<std::mutex> guard(mutex_);
-    auto idrivers(drivers_.find(fid));
-
-    boost::optional<Record::Status> status;
-
-    if (idrivers != drivers_.end()) {
-        auto &record(idrivers->second);
-        switch (auto s = record.status()) {
-        case Record::Status::ready:
-            // fine
-            record.update();
-            return record.driver;
-
-        case Record::Status::invalid:
-            throw vs::NoSuchTileSet("(cached) No such tileset.");
-
-        case Record::Status::outdated:
-        case Record::Status::pending:
-            // either waiting for pending open or underlying dataset has been
-            // changed, need to wait for driver re/open
-            status = s;
-            break;
-        }
-    }
-
-    // need to open or wait for a pending open
-    Promise<Driver> promise;
-    auto future(promise.promise().get_future());
-
-    get(guard, path, fid, idrivers
-        , [promise](const Expected &driver)
-    {
-        driver.get(promise.promise());
-    }, status);
-
-    // wait without holding lock
-    auto value(future.get());
-    return value;
-}
 
 void DeliveryCache::get(const std::string &path, const Callback &callback
                         , bool forcedReopen)
 {
-    workers_->get(path, callback, forcedReopen);
+    workers_->get(path, callback, checkForChange(forcedReopen));
 }
 
-DeliveryCache::Driver DeliveryCache::get(const std::string &path)
+void DeliveryCache::post(const DeliveryCache::Callback &callback
+                         , const std::function<void()> &callable)
 {
-    return workers_->get(path);
+    workers_->post(callback, callable);
 }
 
 namespace {

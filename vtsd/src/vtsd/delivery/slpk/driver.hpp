@@ -24,32 +24,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "./fileclass.hpp"
+#ifndef vtsd_delivery_slpk_driver_hpp_included_
+#define vtsd_delivery_slpk_driver_hpp_included_
 
-namespace po = boost::program_options;
+#include "../driver.hpp"
+#include "../cache.hpp"
 
-void FileClassSettings
-::configuration(po::options_description &od, const std::string &prefix
-                , const std::initializer_list<FileClass> &values)
-{
-    auto ao(od.add_options());
-    for (auto fc : values) {
-        if (fc == FileClass::unknown) { continue; }
-        auto name(boost::lexical_cast<std::string>(fc));
-        ao((prefix + name).c_str()
-           , po::value(&maxAges_[static_cast<int>(fc)])
-           ->required()->default_value(maxAges_[static_cast<int>(fc)])
-           , ("Max age of file class <" + name
-              + ">; >=0: Cache-Control: max-age, <0: Cache-Control=no-cache")
-           .c_str());
-    }
-}
+DriverWrapper::pointer openSlpk(const std::string &path
+                               , const OpenOptions &openOptions
+                               , DeliveryCache &cache
+                               , const DeliveryCache::Callback &callback);
 
-void FileClassSettings::dump(std::ostream &os, const std::string &prefix
-                             , const std::initializer_list<FileClass> &values)
-    const
-{
-    for (auto fc : values) {
-        os << prefix << fc << " = " << getMaxAge(fc) << "\n";
-    }
-}
+#endif // vtsd_delivery_slpk_driver_hpp_included_

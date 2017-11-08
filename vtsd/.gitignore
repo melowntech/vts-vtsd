@@ -5,6 +5,7 @@ lib
 
 tmp
 obj-x86_64-linux-gnu
+core
 .gdb_history
 
 output

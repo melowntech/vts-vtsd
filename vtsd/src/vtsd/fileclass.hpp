@@ -39,6 +39,14 @@
  */
 enum class FileClass { config, support, registry, data, unknown };
 
+UTILITY_GENERATE_ENUM_IO(FileClass,
+                         ((config))
+                         ((support))
+                         ((registry))
+                         ((data))
+                         ((unknown))
+                         )
+
 class FileClassSettings {
 public:
     FileClassSettings() : maxAges_{{0}} {
@@ -47,24 +55,20 @@ public:
     }
 
     void configuration(boost::program_options::options_description &od
-                       , const std::string &prefix = "");
+                       , const std::string &prefix = ""
+                       , const std::initializer_list<FileClass> &values
+                       = enumerationValues(FileClass()));
 
     void setMaxAge(FileClass fc, long value);
     long getMaxAge(FileClass fc) const;
 
-    void dump(std::ostream &os, const std::string &prefix) const;
+    void dump(std::ostream &os, const std::string &prefix
+              , const std::initializer_list<FileClass> &values
+              = enumerationValues(FileClass())) const;
 
 private:
     std::array<long, static_cast<int>(FileClass::unknown) + 1> maxAges_;
 };
-
-UTILITY_GENERATE_ENUM_IO(FileClass,
-                         ((config))
-                         ((support))
-                         ((registry))
-                         ((data))
-                         ((unknown))
-                         )
 
 // inlines
 

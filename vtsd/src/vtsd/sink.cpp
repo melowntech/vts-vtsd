@@ -156,7 +156,74 @@ private:
     std::size_t end_;
 };
 
-} //namesapce
+class RoArchiveDataSource : public http::SinkBase::DataSource
+{
+public:
+    RoArchiveDataSource(const roarchive::IStream::pointer &is
+                        , const std::string &contentType, FileClass fileClass
+                        , const FileClassSettings *fileClassSettings
+                        , const std::string &trasferEncoding)
+        : http::SinkBase::DataSource(true), is_(is)
+        , size_(is_->size() ? *is_->size() : -1)
+        , seekable_(is_->seekable()), off_()
+    {
+        fi_.lastModified = is_->timestamp();
+        fi_.contentType = contentType;
+        fi_.maxAge = maxAge(fileClass, fileClassSettings);
+
+        if (!trasferEncoding.empty()) {
+            headers_.emplace_back("Content-Encoding", trasferEncoding);
+        }
+    }
+
+private:
+    virtual http::SinkBase::FileInfo stat() const { return fi_; }
+
+    virtual std::size_t read(char *buf, std::size_t size
+                             , std::size_t off);
+
+    virtual void close() const { is_->close(); }
+
+    virtual long size() const { return size_; }
+
+    virtual const http::Header::list *headers() const { return &headers_; }
+
+    roarchive::IStream::pointer is_;
+    http::SinkBase::FileInfo fi_;
+
+    long size_;
+    bool seekable_;
+    std::size_t off_;
+    http::Header::list headers_;
+};
+
+std::size_t RoArchiveDataSource::read(char *buf, std::size_t size
+                                      , std::size_t off)
+{
+    if (off != off_) {
+        if (seekable_) {
+            is_->get().seekg(off);
+            off_ = off;
+        } else {
+            LOGTHROW(err2, std::runtime_error)
+                << "This archive file is unseekable.";
+        }
+    }
+
+    // fix size if too long
+    {
+        long end(off_ + size);
+        if (end > size_) { size = size_ - off_; }
+    }
+
+    is_->get().read(buf, size);
+    auto read(is_->get().gcount());
+
+    off_ = off + read;
+    return read;
+}
+
+} // namespace
 
 void Sink::content(const vs::IStream::pointer &stream
                    , FileClass fileClass)
@@ -172,6 +239,16 @@ void Sink::content(const vs::IStream::pointer &stream
     sink_->content(std::make_shared<SubIStreamDataSource>
                    (stream, fileClass, &locationConfig_.fileClassSettings
                     , offset, size, gzipped));
+}
+
+void Sink::content(const roarchive::IStream::pointer &stream
+                   , const std::string &contentType, FileClass fileClass
+                   , const std::string &trasferEncoding)
+{
+    sink_->content(std::make_shared<RoArchiveDataSource>
+                   (stream, contentType
+                    , fileClass, &locationConfig_.fileClassSettings
+                    , trasferEncoding));
 }
 
 void Sink::content(const vs::SupportFile &data)

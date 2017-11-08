@@ -38,6 +38,8 @@
 
 #include "http/contentgenerator.hpp"
 
+#include "roarchive/istream.hpp"
+
 #include "vts-libs/storage/streams.hpp"
 #include "vts-libs/storage/support.hpp"
 
@@ -130,6 +132,17 @@ public:
     void content(const vs::IStream::pointer &stream
                  , FileClass fileClass, std::size_t offset, std::size_t size
                  , bool gzipped = false);
+
+    /** Sends content to client.
+     * \param stream stream to send
+     * \param contentType mime type
+     * \param fileClass file class
+     * \param gzipped adds Content-Encoding: gzip
+     */
+    void content(const roarchive::IStream::pointer &stream
+                 , const std::string &contentType
+                 , FileClass fileClass
+                 , const std::string &trasferEncoding = "");
 
     /** Tell client to look somewhere else.
      */
