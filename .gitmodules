@@ -37,3 +37,9 @@
 [submodule "externals/vts-libs"]
 	path = externals/vts-libs
 	url = https://github.com/Melown/vts-libs.git
+[submodule "externals/libroarchive"]
+	path = externals/libroarchive
+	url = https://github.com/Melown/libroarchive
+[submodule "externals/libslpk"]
+	path = externals/libslpk
+	url = https://github.com/Melown/libslpk

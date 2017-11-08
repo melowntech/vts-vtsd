@@ -42,8 +42,11 @@ add_subdirectory(src/service)
 add_subdirectory(src/half)
 add_subdirectory(src/http)
 
+add_subdirectory(src/roarchive)
+add_subdirectory(src/slpk)
+
 # vts libraries
-if(NOT DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
+if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
   buildsys_nobuild_target(vts-libs)
 endif()
 
