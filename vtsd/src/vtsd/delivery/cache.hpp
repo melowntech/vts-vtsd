@@ -58,16 +58,23 @@ struct OpenOptions {
 
 class DeliveryCache : boost::noncopyable {
 public:
-    DeliveryCache(unsigned int threadCount
-                  , const vtslibs::vts::OpenOptions &openOptions);
-    ~DeliveryCache();
-
     typedef DriverWrapper::pointer Driver;
     typedef utility::Expected<Driver> Expected;
     typedef std::function<void(const Expected&)> Callback;
     typedef std::vector<Callback> CallbackList;
+    typedef std::function<Driver(const std::string &path
+                                 , const OpenOptions &openOptions
+                                 , DeliveryCache &cache
+                                 , const Callback &callback)> OpenDriver;
 
-    /** Calls callback with driver for given path. Call is immediated if driver
+    DeliveryCache(unsigned int threadCount
+                  , const vtslibs::vts::OpenOptions &openOptions
+                  , const OpenDriver &openDriver);
+    ~DeliveryCache();
+
+
+
+/** Calls callback with driver for given path. Call is immediated if driver
      *  is already open or postponed until driver is available.
      *
      * \param path filesystem path of dataset to open

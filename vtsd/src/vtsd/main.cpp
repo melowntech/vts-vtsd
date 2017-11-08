@@ -52,6 +52,8 @@
 #include "./error.hpp"
 #include "./config.hpp"
 #include "./delivery/cache.hpp"
+#include "./delivery/vts/driver.hpp"
+#include "./delivery/vts0/driver.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -325,11 +327,31 @@ bool Daemon::prePersonaSwitch()
     return false; // no need to keep saved persona
 }
 
+namespace {
+
+DeliveryCache::Driver openDriver(const std::string &path
+                                 , const OpenOptions &openOptions
+                                 , DeliveryCache &cache
+                                 , const DeliveryCache::Callback &callback)
+{
+    LOG(info2) << "Opening driver for \"" << path << "\".";
+    // try VTS
+    try {
+        return openVts(path, openOptions, cache, callback);
+    } catch (vs::NoSuchTileSet) {}
+
+    // finally try VTS0
+    return openVts0(path);
+}
+
+} // namespace
+
 service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
-    deliveryCache_ = boost::in_place(coreThreadCount_, openOptions_);
+    deliveryCache_ = boost::in_place
+        (coreThreadCount_, openOptions_, &openDriver);
 
     http_ = boost::in_place();
     http_->serverHeader(utility::format

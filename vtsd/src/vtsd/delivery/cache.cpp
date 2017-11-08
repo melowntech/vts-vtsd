@@ -42,8 +42,6 @@
 #include "vts-libs/storage/io.hpp"
 
 #include "./cache.hpp"
-#include "./vts/driver.hpp"
-#include "./vts0/driver.hpp"
 
 namespace asio = boost::asio;
 namespace bs = boost::system;
@@ -152,8 +150,9 @@ typedef std::map<utility::FileId, Record> Drivers;
 class DeliveryCache::Detail : boost::noncopyable {
 public:
     Detail(DeliveryCache &cache, unsigned int threadCount
-           , const vts::OpenOptions &openOptions)
-        : cache_(cache), openOptions_(openOptions)
+           , const vts::OpenOptions &openOptions
+           , const OpenDriver &openDriver)
+        : cache_(cache), openOptions_(openOptions), openDriver_(openDriver)
         , maintenanceTimer_(ios_)
     {
         cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
@@ -191,6 +190,7 @@ private:
 
     DeliveryCache &cache_;
     const vts::OpenOptions openOptions_;
+    const OpenDriver openDriver_;
 
     vs::Resources cleanupLimit_;
 
@@ -288,21 +288,6 @@ void DeliveryCache::Detail::startMaintenance()
     });
 }
 
-DeliveryCache::Driver openDriver(const std::string &path
-                                 , const OpenOptions &openOptions
-                                 , DeliveryCache &cache
-                                 , const DeliveryCache::Callback &callback)
-{
-    LOG(info2) << "Opening driver for \"" << path << "\".";
-    // try VTS
-    try {
-        return openVts(path, openOptions, cache, callback);
-    } catch (vs::NoSuchTileSet) {}
-
-    // finally try VTS0
-    return openVts0(path);
-}
-
 void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
 {
     const auto dispatch([this](CallbackList &callbacks, const Expected &value)
@@ -358,13 +343,13 @@ void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
         try {
             // open driver
             auto driver
-                (openDriver(record.path
-                            , OpenOptions(openOptions_, forcedReopen)
-                            , cache_
-                            , [this, &record](const Expected &value)
-                            {
-                                finishOpen(record, value);
-                            }));
+                (openDriver_(record.path
+                             , OpenOptions(openOptions_, forcedReopen)
+                             , cache_
+                             , [this, &record](const Expected &value)
+                             {
+                                 finishOpen(record, value);
+                             }));
             if (!driver) {
                 // async, ignore
                 return;
@@ -377,8 +362,9 @@ void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
 }
 
 DeliveryCache::DeliveryCache(unsigned int threadCount
-                             , const vts::OpenOptions &openOptions)
-    : workers_(new Detail(*this, threadCount, openOptions))
+                             , const vts::OpenOptions &openOptions
+                             , const OpenDriver &openDriver)
+    : workers_(new Detail(*this, threadCount, openOptions, openDriver))
 {}
 
 DeliveryCache::~DeliveryCache() {}
