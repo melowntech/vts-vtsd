@@ -52,6 +52,7 @@ struct LocationConfig {
     std::string location;
     Match match;
     bool enableDataset;
+
     bool enableBrowser;
     bool enableListing;
     vs::SupportFile::Vars vars;

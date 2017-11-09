@@ -27,6 +27,7 @@
 #ifndef httpd_fileclass_hpp_included_
 #define httpd_fileclass_hpp_included_
 
+#include <ctime>
 #include <array>
 
 #include <boost/any.hpp>
@@ -49,37 +50,59 @@ UTILITY_GENERATE_ENUM_IO(FileClass,
 
 class FileClassSettings {
 public:
-    FileClassSettings() : maxAges_{{0}} {
+    static constexpr std::size_t storageSize =
+        static_cast<int>(FileClass::unknown) + 1;
+
+    /** All file classes are disables by default. Setting value allows them
+     *  automatically.
+     */
+    FileClassSettings() {
+        // reset to defaults
+        allowed_.fill(false);
+        maxAges_.fill(0);
+
         // unknown files are never cached -- for example directory listings
         setMaxAge(FileClass::unknown, -1);
     }
 
     void configuration(boost::program_options::options_description &od
-                       , const std::string &prefix = ""
-                       , const std::initializer_list<FileClass> &values
-                       = enumerationValues(FileClass()));
+                       , const std::string &prefix = "");
 
-    void setMaxAge(FileClass fc, long value);
-    long getMaxAge(FileClass fc) const;
+    void setMaxAge(FileClass fc, std::time_t value);
+    std::time_t getMaxAge(FileClass fc) const;
 
-    void dump(std::ostream &os, const std::string &prefix
-              , const std::initializer_list<FileClass> &values
-              = enumerationValues(FileClass())) const;
+    void allow(FileClass fc, bool value);
+    bool allowed(FileClass fc) const;
+
+    void dump(std::ostream &os, const std::string &prefix) const;
 
 private:
-    std::array<long, static_cast<int>(FileClass::unknown) + 1> maxAges_;
+    std::array<bool, storageSize> allowed_;
+    std::array<std::time_t, storageSize> maxAges_;
 };
 
 // inlines
 
-inline void FileClassSettings::setMaxAge(FileClass fc, long value)
+inline void FileClassSettings::setMaxAge(FileClass fc, std::time_t value)
 {
     maxAges_[static_cast<int>(fc)] = value;
+    allowed_[static_cast<int>(fc)] = true;
 }
 
-inline long FileClassSettings::getMaxAge(FileClass fc) const
+inline std::time_t FileClassSettings::getMaxAge(FileClass fc) const
 {
     return maxAges_[static_cast<int>(fc)];
+}
+
+inline void FileClassSettings::allow(FileClass fc, bool value)
+{
+    // do not allow unknown
+    allowed_[static_cast<int>(fc)] = value;
+}
+
+inline bool FileClassSettings::allowed(FileClass fc) const
+{
+    return allowed_[static_cast<int>(fc)];
 }
 
 #endif // httpd_fileclass_hpp_included_

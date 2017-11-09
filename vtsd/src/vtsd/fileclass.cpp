@@ -29,12 +29,13 @@
 namespace po = boost::program_options;
 
 void FileClassSettings
-::configuration(po::options_description &od, const std::string &prefix
-                , const std::initializer_list<FileClass> &values)
+::configuration(po::options_description &od, const std::string &prefix)
 {
     auto ao(od.add_options());
-    for (auto fc : values) {
-        if (fc == FileClass::unknown) { continue; }
+    for (auto fc : enumerationValues(FileClass())) {
+        // do allow configuration of unknown file class
+        if ((fc == FileClass::unknown) || !allowed(fc)) { continue; }
+
         auto name(boost::lexical_cast<std::string>(fc));
         ao((prefix + name).c_str()
            , po::value(&maxAges_[static_cast<int>(fc)])
@@ -45,11 +46,11 @@ void FileClassSettings
     }
 }
 
-void FileClassSettings::dump(std::ostream &os, const std::string &prefix
-                             , const std::initializer_list<FileClass> &values)
+void FileClassSettings::dump(std::ostream &os, const std::string &prefix)
     const
 {
-    for (auto fc : values) {
+    for (auto fc : enumerationValues(FileClass())) {
+        if (!allowed(fc)) { continue; }
         os << prefix << fc << " = " << getMaxAge(fc) << "\n";
     }
 }

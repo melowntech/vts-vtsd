@@ -79,7 +79,6 @@ LocationConfig defaultConfig()
     auto &fcs(dc.fileClassSettings);
     fcs.setMaxAge(FileClass::config, 60);
     fcs.setMaxAge(FileClass::data, 604800);
-    fcs.setMaxAge(FileClass::unknown, 1);
 
     return dc;
 }
@@ -227,7 +226,7 @@ void I3sd::generate_impl(const http::Request &request
         return Daemon::generate_impl(r, sink);
     }
 
-    // TODO: handle listing
+    // nothing
     return sink->error(utility::makeError<NotFound>("Not found."));
 }
 

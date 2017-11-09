@@ -44,7 +44,8 @@ void LocationConfig::configuration(po::options_description &od
          "this location.")
         ((prefix + "browser").c_str()
          , po::value(&enableBrowser)->default_value(enableBrowser)
-         , "Enable built-in browser at this location.")
+         , "Enable built-in browser at this location. NB: only some drivers"
+         " provide built-in browser.")
         ((prefix + "listing").c_str()
          , po::value(&enableListing)->default_value(enableListing)
          , "Enabled directory listing.")
