@@ -55,6 +55,10 @@
 #include "./delivery/vts/driver.hpp"
 #include "./delivery/vts0/driver.hpp"
 
+#ifdef VTSLIBS_HAS_TILESTORAGE
+#  include "./delivery/tileset/driver.hpp"
+#endif
+
 #include "./daemon.hpp"
 
 namespace po = boost::program_options;
@@ -171,6 +175,23 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
          -> DeliveryCache::Driver
          {
              LOG(info2) << "Opening driver for \"" << path << "\".";
+
+#ifdef VTSLIBS_HAS_TILESTORAGE
+             // Legacy tilestorage support; tilestorage got an eviction notice
+             // but still lingering here...
+
+             // try VTS
+             try {
+                 return openVts(path, openOptions, cache, callback);
+             } catch (vs::NoSuchTileSet) {}
+
+             // try VTS0
+             try { return openVts0(path); } catch (vs::NoSuchTileSet) {}
+
+             // finaly, try old TS
+             return openTileSet(path);
+
+#else
              // try VTS
              try {
                  return openVts(path, openOptions, cache, callback);
@@ -178,6 +199,8 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
 
              // finally try VTS0
              return openVts0(path);
+#endif
+
          });
 }
 
