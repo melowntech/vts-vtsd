@@ -43,11 +43,6 @@
 
 namespace po = boost::program_options;
 
-/** Helper function.
- */
-void sendListing(const boost::filesystem::path &path, Sink &sink
-                 , const Sink::Listing &bootstrap = Sink::Listing());
-
 class Daemon
     : public service::Service
     , public http::ContentGenerator

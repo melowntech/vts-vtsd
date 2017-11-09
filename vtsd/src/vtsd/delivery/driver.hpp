@@ -27,6 +27,8 @@
 #ifndef httpd_delivery_driver_hpp_included_
 #define httpd_delivery_driver_hpp_included_
 
+#include <utility>
+
 #include "vts-libs/storage/resources.hpp"
 #include "vts-libs/storage/streams.hpp"
 #include "vts-libs/storage/support.hpp"
@@ -44,11 +46,15 @@ namespace vs = vtslibs::storage;
  */
 struct ListContent {
     Sink::Listing listingBootstrap;
+    bool nonFs;
 
-    ListContent(Sink::Listing listingBootstrap = Sink::Listing())
-        : listingBootstrap(listingBootstrap)
+    ListContent(Sink::Listing listingBootstrap = Sink::Listing()
+                , bool nonFs = false)
+        : listingBootstrap(std::move(listingBootstrap)), nonFs(nonFs)
     {}
 };
+
+struct RedirectToDir {};
 
 struct FileInfo {
     enum class Type {

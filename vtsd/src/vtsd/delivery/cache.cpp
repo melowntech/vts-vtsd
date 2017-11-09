@@ -334,15 +334,6 @@ void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
 {
     ios_.post([this, &record, forcedReopen]() mutable
     {
-        const auto dispatch([this](CallbackList &callbacks
-                                   , const Expected &value)
-        {
-            for (const auto &callback : callbacks) {
-                // dispatch in thread pool
-                ios_.post([callback, value]() { callback(value); });
-            }
-        });
-
         try {
             // open driver
             auto driver

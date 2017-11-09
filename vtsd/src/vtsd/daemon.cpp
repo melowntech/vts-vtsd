@@ -283,7 +283,7 @@ void Daemon::handlePlain(const fs::path &filePath, const http::Request&
 
             if (location.enableListing) {
                 // directory and we have enabled browser -> directory listing
-                sendListing(filePath, sink);
+                sink.listing(filePath);
                 return;
             }
 
@@ -378,20 +378,4 @@ void Daemon::generate_impl(const http::Request &request
     case LocationConfig::Match::regex:
         return handleRegex(*matchedLocation, m, request, sink);
     }
-}
-
-void sendListing(const fs::path &path, Sink &sink
-                 , const Sink::Listing &bootstrap)
-{
-    http::ServerSink::Listing listing(bootstrap);
-
-    for (fs::directory_iterator ipath(path), epath; ipath != epath; ++ipath) {
-        const auto &entry(*ipath);
-        listing.emplace_back(entry.path().filename().string()
-                             , (is_directory(entry.status())
-                                ? http::ServerSink::ListingItem::Type::dir
-                                : http::ServerSink::ListingItem::Type::file));
-    }
-
-    sink.listing(listing);
 }

@@ -67,6 +67,16 @@ SlpkDriver::SlpkDriver(slpk::Archive &&reader)
 void SlpkDriver::handle(Sink sink, const std::string &path
                         , const LocationConfig &)
 {
+    // do not allow empty path
+    if (path.empty()) { throw RedirectToDir(); }
+
+    // list root
+    if (path == "/") {
+        throw ListContent({
+            { "SceneServer" }
+        }, true);
+    }
+
     roarchive::IStream::pointer is;
     const slpk::ApiFile *apiFile;
     std::tie(is, apiFile) = api_.file(path);;
@@ -108,6 +118,7 @@ DriverWrapper::pointer openSlpk(const std::string &path
                                , const DeliveryCache::Callback &callback)
 {
     // TODO: check mime
+    LOG(info4) << "about to open <" << path << ">";
 
     cache.post(callback, [=]() -> void
     {

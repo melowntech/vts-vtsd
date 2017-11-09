@@ -224,7 +224,7 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
                 if (location.enableListing) {
                     // directory and we have enabled browser -> directory
                     // listing
-                    sendListing(parent, sink);
+                    sink.listing(parent);
                     return;
                 }
 
@@ -254,7 +254,7 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
         } catch (const ListContent &lc) {
             if (location.enableListing) {
                 // directory and we have enabled browser -> directory listing
-                sendListing(parent, sink, lc.listingBootstrap);
+                sink.listing(parent, lc.listingBootstrap);
                 return;
             }
             LOG(err1) << "Path " << filePath << " is unlistable.";

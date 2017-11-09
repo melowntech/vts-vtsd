@@ -26,6 +26,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
+#include <boost/filesystem.hpp>
 
 #include <opencv2/highgui/highgui.hpp>
 
@@ -35,6 +36,8 @@
 
 #include "./sink.hpp"
 #include "./error.hpp"
+
+namespace fs = boost::filesystem;
 
 namespace {
 
@@ -287,4 +290,20 @@ Sink::FileInfo& Sink::FileInfo::setMaxAge(const boost::optional<long> &ma)
 Sink::FileInfo Sink::update(const FileInfo &stat) const
 {
     return ::update(stat, &locationConfig_.fileClassSettings);
+}
+
+void Sink::listing(const boost::filesystem::path &path
+                   , const Sink::Listing &bootstrap)
+{
+    http::ServerSink::Listing list(bootstrap);
+
+    for (fs::directory_iterator ipath(path), epath; ipath != epath; ++ipath) {
+        const auto &entry(*ipath);
+        list.emplace_back(entry.path().filename().string()
+                          , (fs::is_directory(entry.status())
+                             ? ListingItem::Type::dir
+                                : ListingItem::Type::file));
+    }
+
+    listing(list);
 }

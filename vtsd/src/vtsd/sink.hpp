@@ -156,6 +156,11 @@ public:
         sink_->listing(list);
     }
 
+    /** Generate listing from given path.
+     */
+    void listing(const boost::filesystem::path &path
+                 , const Sink::Listing &bootstrap = Sink::Listing());
+
     /** Sends current exception to the client.
      */
     void error();
