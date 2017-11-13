@@ -1,8 +1,14 @@
-vts-vtsd (1.10) stable; urgency=low
+vts-vtsd (1.11) stable; urgency=low
 
   * Added i3sd daemon.
 
  -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Mon, 13 Nov 2017 12:18:47 +0100
+
+vts-vtsd (1.10) stable; urgency=low
+
+  * Fixed driver reopen on change.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net> Tue, 24 Oct 2017 10:52:34 +0200
 
 vts-vtsd (1.9) stable; urgency=medium
 
