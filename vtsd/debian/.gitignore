@@ -2,6 +2,8 @@
 *.substvars
 vts-vtsd
 vts-vtsd-dbg
+ctt-vts-vtsd
+ctt-vts-vtsd-dbg
 *.debhelper
 files
 control
