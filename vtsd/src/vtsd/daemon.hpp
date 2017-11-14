@@ -48,7 +48,8 @@ class Daemon
     , public http::ContentGenerator
 {
 public:
-    Daemon(const std::string &name, const utility::TcpEndpoint &httpListen
+    Daemon(const std::string &name, const std::string &version
+           , const utility::TcpEndpoint &httpListen
            , const LocationConfig &defaultConfig);
 
 protected:

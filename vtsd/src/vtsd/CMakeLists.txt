@@ -62,6 +62,8 @@ buildsys_target_compile_definitions(i3sd ${MODULE_DEFINITIONS})
 buildsys_binary(i3sd)
 set_target_version(i3sd ${vts-vtsd_VERSION})
 
+message(STATUS "vts-vtsd_VERSION: ${vts-vtsd_VERSION}")
+
 # ------------------------------------------------------------------------
 # --- installation
 # ------------------------------------------------------------------------

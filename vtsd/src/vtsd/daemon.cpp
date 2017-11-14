@@ -52,9 +52,10 @@ namespace ba = boost::algorithm;
 
 namespace vs = vtslibs::storage;
 
-Daemon::Daemon(const std::string &name, const utility::TcpEndpoint &httpListen
+Daemon::Daemon(const std::string &name, const std::string &version
+               , const utility::TcpEndpoint &httpListen
                , const LocationConfig &defaultConfig)
-    : service::Service(name, BUILD_TARGET_VERSION
+    : service::Service(name, version
                        , service::ENABLE_CONFIG_UNRECOGNIZED_OPTIONS
                        | service::ENABLE_UNRECOGNIZED_OPTIONS)
     , httpListen_(httpListen)

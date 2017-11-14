@@ -184,7 +184,7 @@ class I3sd : public Daemon
 {
 public:
     I3sd()
-        : Daemon("i3sd", 3061, defaultConfig())
+        : Daemon("i3sd", BUILD_TARGET_VERSION, 3061, defaultConfig())
     {}
 
 private:
