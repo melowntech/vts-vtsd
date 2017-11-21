@@ -205,7 +205,8 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
 }
 
 void Vtsd::handleDataset(DeliveryCache &deliveryCache
-                         , const fs::path &filePath, const http::Request&
+                         , const fs::path &filePath
+                         , const http::Request &request
                          , Sink sink, const LocationConfig &location)
 {
     const auto parent(filePath.parent_path());
@@ -217,7 +218,8 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
          mutable -> void
     {
         try {
-            value.get()->handle(sink, file.string(), location);
+            value.get()->handle
+                (sink, { file.string(), request.query }, location);
         } catch (vs::NoSuchTileSet) {
             boost::system::error_code ec;
             auto status(fs::status(filePath, ec));

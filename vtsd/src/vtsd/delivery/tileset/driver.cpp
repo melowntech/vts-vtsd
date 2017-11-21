@@ -100,7 +100,7 @@ public:
         return driver_->externallyChanged();
     }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Location &location
                         , const LocationConfig &config);
 
 private:
@@ -108,10 +108,10 @@ private:
     std::mutex mutex_;
 };
 
-void TsDriver::handle(Sink sink, const std::string &path
+void TsDriver::handle(Sink sink, const Location &location
                       , const LocationConfig &config)
 {
-    TsFileInfo info(path, config);
+    TsFileInfo info(location.path, config);
 
     switch (info.type) {
     case FileInfo::Type::file: {

@@ -307,3 +307,10 @@ void Sink::listing(const boost::filesystem::path &path
 
     listing(list);
 }
+
+void Sink::redirect(const std::string &url, utility::HttpCode code
+                    , FileClass fileClass)
+{
+    sink_->redirect
+        (url, code, update(Sink::FileInfo().setFileClass(fileClass)).maxAge);
+}

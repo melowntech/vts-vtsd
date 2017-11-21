@@ -80,6 +80,15 @@ struct FileInfo {
     {}
 };
 
+struct Location {
+    std::string path;
+    std::string query;
+
+    Location(const std::string &path, const std::string &query)
+        : path(path), query(query)
+    {}
+};
+
 class DriverWrapper : boost::noncopyable {
 public:
     typedef std::shared_ptr<DriverWrapper> pointer;
@@ -90,7 +99,7 @@ public:
     virtual vs::Resources resources() const = 0;
     virtual bool externallyChanged() const = 0;
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Location &location
                         , const LocationConfig &config) = 0;
 
     /** Open driver for hot content is never cached.

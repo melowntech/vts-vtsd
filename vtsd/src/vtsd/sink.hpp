@@ -150,6 +150,11 @@ public:
         sink_->redirect(url, code);
     }
 
+    /** Tell client to look somewhere else. Add file class to set caching.
+     */
+    void redirect(const std::string &url, utility::HttpCode code
+                  , FileClass fileClass);
+
     /** Generates listing.
      */
     void listing(const Listing &list) {

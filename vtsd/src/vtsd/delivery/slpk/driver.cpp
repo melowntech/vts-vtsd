@@ -52,7 +52,7 @@ public:
 
     virtual bool externallyChanged() const { return api_.changed(); }
 
-    virtual void handle(Sink sink, const std::string &path
+    virtual void handle(Sink sink, const Location &location
                         , const LocationConfig &config);
 
 private:
@@ -64,14 +64,14 @@ SlpkDriver::SlpkDriver(slpk::Archive &&reader)
     : api_(std::move(reader))
 {}
 
-void SlpkDriver::handle(Sink sink, const std::string &path
+void SlpkDriver::handle(Sink sink, const Location &location
                         , const LocationConfig &)
 {
     // do not allow empty path
-    if (path.empty()) { throw RedirectToDir(); }
+    if (location.path.empty()) { throw RedirectToDir(); }
 
     // list root
-    if (path == "/") {
+    if (location.path == "/") {
         throw ListContent({
             { "SceneServer" }
         }, true);
@@ -79,7 +79,7 @@ void SlpkDriver::handle(Sink sink, const std::string &path
 
     roarchive::IStream::pointer is;
     const slpk::ApiFile *apiFile;
-    std::tie(is, apiFile) = api_.file(path);;
+    std::tie(is, apiFile) = api_.file(location.path);;
 
     // get content type
     auto ct(apiFile->contentType);

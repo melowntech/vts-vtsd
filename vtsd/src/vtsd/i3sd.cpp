@@ -310,7 +310,8 @@ struct SplitPath {
 };
 
 void I3sd::handleDataset(DeliveryCache &deliveryCache
-                         , const fs::path &filePath, const http::Request&
+                         , const fs::path &filePath
+                         , const http::Request &request
                          , Sink sink, const LocationConfig &location)
 {
     SplitPath sp(filePath);
@@ -368,7 +369,8 @@ void I3sd::handleDataset(DeliveryCache &deliveryCache
          mutable -> void
     {
         try {
-            value.get()->handle(sink, sp.resource, location);
+            value.get()->handle
+                (sink, { sp.resource, request.query }, location);
 
         } catch (const ListContent &lc) {
             if (location.enableListing) {
