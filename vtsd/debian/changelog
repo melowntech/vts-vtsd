@@ -1,3 +1,9 @@
+vts-vtsd (1.13) stable; urgency=low
+
+  * Supporting tagged versions in storageview configuration.
+
+ -- Vaclav Blazek <vaclav.blazek@citationtech.net>  Fri, 09 Feb 2018 10:22:07 +0100
+
 vts-vtsd (1.12) stable; urgency=low
 
   * Proper version in binaries.
