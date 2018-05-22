@@ -1,3 +1,9 @@
+vts-vtsd (1.14) stable; urgency=medium
+
+  * Updated vts-libs.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Tue, 22 May 2018 22:29:45 +0200
+
 vts-vtsd (1.13) stable; urgency=low
 
   * Supporting tagged versions in storageview configuration.
