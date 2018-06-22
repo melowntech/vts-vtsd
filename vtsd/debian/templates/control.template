@@ -8,7 +8,7 @@ Homepage: https://github.com/Melown/vts-vtsd
 
 Package: vts-vtsd
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, vts-registry (>= 1.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, vts-registry (>= 1.21)
          , proj-data-vts | ctt-ops-proj-data
 Replaces: ctt-vts-vtsd (<< 1.0)
 Breaks: ctt-vts-vtsd (<< 1.0)
