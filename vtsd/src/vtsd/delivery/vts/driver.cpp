@@ -40,6 +40,7 @@
 #include "vts-libs/vts/2d.hpp"
 #include "vts-libs/vts/debug.hpp"
 #include "vts-libs/vts/virtualsurface.hpp"
+#include "vts-libs/vts/service.hpp"
 
 #include "./driver.hpp"
 
@@ -71,7 +72,13 @@ struct VtsFileInfo : public FileInfo {
      */
     unsigned int subTileFile;
 
+    /** Registry file if non-null.
+     */
     const vr::DataFile *registry;
+
+    /** Service file if non-zero
+     */
+    unsigned int service;
 
     VtsFileInfo(const std::string &path, const LocationConfig &config
                 , int extraFlags = ExtraFlags::none);
@@ -96,6 +103,7 @@ namespace constants {
 VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
                          , int extraFlags)
     : FileInfo(p), flavor(vts::FileFlavor::regular), subTileFile(0), registry()
+    , service()
 {
     if (vts::fromFilename(tileId, tileFile, subTileFile, path, 0, &flavor)) {
         type = Type::tileFile;
@@ -173,6 +181,11 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
         type = Type::file;
         file = vs::File::config;
         flavor = vts::FileFlavor::debug;
+        return;
+    }
+
+    if ((service = vts::service::match(path))) {
+        type = Type::unknown;
         return;
     }
 }
@@ -454,14 +467,19 @@ void VtsTileSet::handle(Sink sink, const Location &location
         // unknown file, let's test other members
         if (info.registry) {
             // it's registry file!
-            return  sink.content(vs::fileIStream(info.registry->contentType
-                                                 , info.registry->path)
-                                 , FileClass::registry);
+            return sink.content(vs::fileIStream(info.registry->contentType
+                                                , info.registry->path)
+                                , FileClass::registry);
+        }
+
+        if (info.service) {
+            return sink.content(vts::service::generate
+                                (info.service, info.path, location.query)
+                                , FileClass::data);
         }
         break;
 
     default:
-        // TODO: implement me
         break;
     }
 

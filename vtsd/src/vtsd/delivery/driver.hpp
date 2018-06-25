@@ -58,7 +58,13 @@ struct RedirectToDir {};
 
 struct FileInfo {
     enum class Type {
-        unknown, file, tileFile, support, definition, dirs, tilesetMapping
+        unknown // unknown file typ
+        , file // non-tile file
+        , tileFile // tile-file
+        , support // support file
+        , definition // definition (configuration)
+        , dirs // list of directories referenced by dataset
+        , tilesetMapping // tileset mapping
     };
 
     std::string path;
