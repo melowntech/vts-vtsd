@@ -304,6 +304,10 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
             LOG(err1) << e.what();
             sink.error
                 (utility::makeError<NotFound>("Domain error"));
+
+        } catch (const utility::HttpError&) {
+            // pass error
+            sink.error();
         }
     });
 }
