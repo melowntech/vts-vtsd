@@ -214,6 +214,9 @@ struct MapConfig {
                 = fs::path(srs.geoidGrid->definition).filename().string();
         });
 
+        // add services
+        vts::service::addLocal(mc);
+
         // serialize map configuration
         {
             std::ostringstream os;
