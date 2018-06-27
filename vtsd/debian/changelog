@@ -1,3 +1,10 @@
+vts-vtsd (1.16) stable; urgency=medium
+
+  * Atmosphere density texture generation
+  * Service handling
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Wed, 27 Jun 2018 16:40:57 +0200
+
 vts-vtsd (1.15) stable; urgency=medium
 
   * Updated vts-libs: body support.
