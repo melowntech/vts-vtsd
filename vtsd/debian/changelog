@@ -1,3 +1,9 @@
+vts-vtsd (1.19) stable; urgency=medium
+
+  * Handling atmosphere density texture in storage and storage view drivers
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Thu, 28 Jun 2018 11:23:09 +0200
+
 vts-vtsd (1.17) stable; urgency=medium
 
   * Fixed atmosphere texture encoding.
