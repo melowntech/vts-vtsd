@@ -638,6 +638,12 @@ void VtsStorageView::handle(Sink sink, const Location &location
         return sink.content(info.support->second);
     }
 
+    if (info.service) {
+        return sink.content(vts::service::generate
+                            (info.service, info.path, location.query)
+                            , FileClass::data);
+    }
+
     // wtf?
     sink.error(utility::makeError<NotFound>("Unknown file."));
 }
@@ -764,12 +770,6 @@ void VtsTileIndex::handle(Sink sink, const Location &location
     if (info.support) {
         // support file
         return sink.content(info.support->second);
-    }
-
-    if (info.service) {
-        return sink.content(vts::service::generate
-                            (info.service, info.path, location.query)
-                            , FileClass::data);
     }
 
     // wtf?
