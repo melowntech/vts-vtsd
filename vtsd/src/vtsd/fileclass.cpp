@@ -33,8 +33,14 @@ void FileClassSettings
 {
     auto ao(od.add_options());
     for (auto fc : enumerationValues(FileClass())) {
-        // do allow configuration of unknown file class
-        if ((fc == FileClass::unknown) || !allowed(fc)) { continue; }
+        // do allow configuration of defined file classes
+        switch (fc) {
+        case FileClass::unknown:
+        case FileClass::ephemeral:
+            continue;
+        default:
+            if (!allowed(fc)) { continue; }
+        }
 
         auto name(boost::lexical_cast<std::string>(fc));
         ao((prefix + name).c_str()

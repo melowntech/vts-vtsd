@@ -402,14 +402,22 @@ void VtsTileSet::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config
                      , ExtraFlags::enableTilesetInternals);
 
+    const auto sendRawFile([&](FileClass fc) -> void
+    {
+        std::unique_lock<std::mutex> guard(mutex_);
+        return sink.content(delivery_->input(info.file), fc);
+    });
+
     switch (info.type) {
     case FileInfo::Type::definition: {
         const auto &def(definition());
-        return sink.content(def.data, fileinfo(def.stat, -1)); }
+        return sink.content
+            (def.data, fileinfo(def.stat, FileClass::ephemeral)); }
 
     case FileInfo::Type::dirs: {
         const auto &mp(mapConfig());
-        return sink.content(mp.dirsData, fileinfo(mp.dirsStat, -1)); }
+        return sink.content
+            (mp.dirsData, fileinfo(mp.dirsStat, FileClass::ephemeral)); }
 
     case FileInfo::Type::file:
         if (info.file == vs::File::config) {
@@ -417,24 +425,28 @@ void VtsTileSet::handle(Sink sink, const Location &location
             case vts::FileFlavor::regular: {
                 // serve updated map config
                 const auto &mp(mapConfig());
-                return sink.content(mp.data, fileinfo(mp.stat, -1)); }
+                return sink.content
+                    (mp.data, fileinfo(mp.stat, FileClass::ephemeral)); }
 
             case vts::FileFlavor::debug: {
                 const auto &def(definition());
-                return sink.content(def.debugData
-                                    , fileinfo(def.debugStat, -1)); }
+                return sink.content
+                    (def.debugData
+                     , fileinfo(def.debugStat, FileClass::ephemeral)); }
+
+            case vts::FileFlavor::raw:
+                return sendRawFile(FileClass::ephemeral);
 
             default:
                 // pass
                 break;
             }
+        } else if (info.file == vs::File::registry) {
+            return sendRawFile(FileClass::ephemeral);
         }
 
         // serve internal (raw) file
-        {
-            std::unique_lock<std::mutex> guard(mutex_);
-            return sink.content(delivery_->input(info.file), FileClass::data);
-        }
+        return sendRawFile(FileClass::data);
 
     case FileInfo::Type::tileFile: {
         // get input stream (locked)
@@ -546,12 +558,13 @@ void VtsStorage::handle(Sink sink, const Location &location
 
     if (location.path == constants::Config) {
         const auto &mp(mapConfig());
-        return sink.content(mp.data, fileinfo(mp.stat, -1));
+        return sink.content(mp.data, fileinfo(mp.stat, FileClass::ephemeral));
     }
 
     if (location.path == constants::Dirs) {
         const auto &mp(mapConfig());
-        return sink.content(mp.dirsData, fileinfo(mp.dirsStat, -1));
+        return sink.content
+            (mp.dirsData, fileinfo(mp.dirsStat, FileClass::ephemeral));
     }
 
     // unknonw file, let's test other members
@@ -617,12 +630,14 @@ void VtsStorageView::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        return sink.content(mapConfig_.data, fileinfo(mapConfig_.stat, -1));
+        return sink.content
+            (mapConfig_.data, fileinfo(mapConfig_.stat, FileClass::ephemeral));
     }
 
     if (location.path == constants::Dirs) {
-        return sink.content(mapConfig_.dirsData
-                            , fileinfo(mapConfig_.dirsStat, -1));
+        return sink.content
+            (mapConfig_.dirsData
+             , fileinfo(mapConfig_.dirsStat, FileClass::ephemeral));
     }
 
     // unknonw file, let's test other members

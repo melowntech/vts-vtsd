@@ -38,13 +38,14 @@
 /** If adding into this enum leave unknown the last one!
  *  Make no holes, i.e. we can use values directly as indices to an array
  */
-enum class FileClass { config, support, registry, data, unknown };
+enum class FileClass { config, support, registry, data, ephemeral, unknown };
 
 UTILITY_GENERATE_ENUM_IO(FileClass,
                          ((config))
                          ((support))
                          ((registry))
                          ((data))
+                         ((ephemeral))
                          ((unknown))
                          )
 
@@ -60,6 +61,9 @@ public:
         // reset to defaults
         allowed_.fill(false);
         maxAges_.fill(0);
+
+        // ephemeral files are never cached
+        setMaxAge(FileClass::ephemeral, -1);
 
         // unknown files are never cached -- for example directory listings
         setMaxAge(FileClass::unknown, -1);

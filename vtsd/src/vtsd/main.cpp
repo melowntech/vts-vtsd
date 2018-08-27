@@ -81,7 +81,6 @@ LocationConfig defaultConfig()
     fcs.setMaxAge(FileClass::support, 3600);
     fcs.setMaxAge(FileClass::registry, 3600);
     fcs.setMaxAge(FileClass::data, 604800);
-    fcs.setMaxAge(FileClass::unknown, 1);
 
     return dc;
 }
