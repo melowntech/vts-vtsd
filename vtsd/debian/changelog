@@ -1,3 +1,9 @@
+vts-vtsd (1.20) stable; urgency=medium
+
+  * Files tileset.conf and tileset.registry are treated as ephemeral and are not cached.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Mon, 27 Aug 2018 19:16:35 +0200
+
 vts-vtsd (1.19) stable; urgency=medium
 
   * Handling atmosphere density texture in storage and storage view drivers
