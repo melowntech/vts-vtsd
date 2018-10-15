@@ -142,7 +142,7 @@ VTS OSS software.
 
 ## Run VTS-VTSD server
 
-First you need to create `vtsd.conf` configuration file. You then can run
+First you need to create `vtsd.conf` configuration file. Sample vtsd.conf can be found in the [`vtsd-backend` project](https://github.com/Melown/vts-backend/blob/master/vts-backend/etc/vtsd/vtsd.conf). You then can run
 
 ```
 vtsd --help
