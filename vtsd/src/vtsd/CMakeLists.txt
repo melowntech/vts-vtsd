@@ -33,16 +33,6 @@ set(vtsd-internals_SOURCES
   delivery/slpk/driver.hpp delivery/slpk/driver.cpp
   )
 
-if(VTSLIBS_HAS_TILESTORAGE)
-  list(APPEND vtsd-internals_SOURCES
-    delivery/tileset/driver.hpp delivery/tileset/driver.cpp
-    )
-elseif(VTSD_NEEDS_TILESTORAGE)
-  message(FATAL_ERROR "Building VTSD for legacy system where tilestorage "
-    "support is mandatory. Please go to the src/vts-libs directory and "
-    " checkout the <ts-legacy> branch first.")
-endif()
-
 add_library(vtsd-internals ${vtsd-internals_SOURCES})
 target_link_libraries(vtsd-internals ${MODULE_LIBRARIES})
 buildsys_target_compile_definitions(vtsd-internals ${MODULE_DEFINITIONS})

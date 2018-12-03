@@ -18,11 +18,6 @@ INSTALL_COMPONENTS_VTSD=main
 # do not build VTS tools provided by vts-libs
 CMAKE_FLAGS=-DBUILDSYS_NOBUILD_TARGET_vts-tools=TRUE
 
-# LEGACY system support
-#ifeq ($(DEB_RELEASE),wheezy)
-#	CMAKE_FLAGS+=-DVTSD_NEEDS_TILESTORAGE=1
-#endif
-
 # include cmake debian support
 include buildsys/cmake/include/debian.mk
 
