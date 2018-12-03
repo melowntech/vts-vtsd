@@ -201,10 +201,10 @@ struct MapConfig {
 
     RegistryFiles registryFiles;
 
-    template <typename Source>
-    MapConfig(const Source &source) {
+    template <typename Source, typename ...Args>
+    MapConfig(const Source &source, Args &&...args) {
         // build map configuration
-        auto mc(source.mapConfig());
+        auto mc(source.mapConfig(args...));
         referenceFrameId = mc.referenceFrame.id;
         mc.srs.for_each([](vr::Srs &srs)
         {
@@ -620,7 +620,6 @@ public:
 
 private:
     vts::StorageView storageView_;
-
     MapConfig mapConfig_;
 };
 
@@ -630,14 +629,16 @@ void VtsStorageView::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
+        const auto &mc(mapConfig_);
         return sink.content
-            (mapConfig_.data, fileinfo(mapConfig_.stat, FileClass::ephemeral));
+            (mc.data, fileinfo(mc.stat, FileClass::ephemeral));
     }
 
     if (location.path == constants::Dirs) {
+        const auto &mc(mapConfig_);
         return sink.content
-            (mapConfig_.dirsData
-             , fileinfo(mapConfig_.dirsStat, FileClass::ephemeral));
+            (mc.dirsData
+             , fileinfo(mc.dirsStat, FileClass::ephemeral));
     }
 
     // unknonw file, let's test other members

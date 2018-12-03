@@ -64,6 +64,14 @@ struct LocationConfig {
      */
     boost::optional<boost::regex> regex;
 
+    /** Name of HTTP header that contains proxy name.
+     */
+    boost::optional<std::string> proxyHeader;
+
+    /** List of allowed proxy names. No proxy is always supported.
+     */
+    std::set<std::string> allowedProxies;
+
     LocationConfig()
         : match(Match::prefix), enableDataset(true)
         , enableBrowser(false), enableListing(false)

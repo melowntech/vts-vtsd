@@ -33,6 +33,7 @@
 #include <boost/utility/in_place_factory.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/thread.hpp>
 
 #include "utility/streams.hpp"
@@ -54,10 +55,6 @@
 #include "./delivery/cache.hpp"
 #include "./delivery/vts/driver.hpp"
 #include "./delivery/vts0/driver.hpp"
-
-#ifdef VTSLIBS_HAS_TILESTORAGE
-#  include "./delivery/tileset/driver.hpp"
-#endif
 
 #include "./daemon.hpp"
 
@@ -175,22 +172,6 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
          {
              LOG(info2) << "Opening driver for \"" << path << "\".";
 
-#ifdef VTSLIBS_HAS_TILESTORAGE
-             // Legacy tilestorage support; tilestorage got an eviction notice
-             // but still lingering here...
-
-             // try VTS
-             try {
-                 return openVts(path, openOptions, cache, callback);
-             } catch (vs::NoSuchTileSet) {}
-
-             // try VTS0
-             try { return openVts0(path); } catch (vs::NoSuchTileSet) {}
-
-             // finaly, try old TS
-             return openTileSet(path);
-
-#else
              // try VTS
              try {
                  return openVts(path, openOptions, cache, callback);
@@ -198,9 +179,27 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
 
              // finally try VTS0
              return openVts0(path);
-#endif
-
          });
+}
+
+boost::optional<std::string>
+getProxy(const LocationConfig &location, const http::Request &request)
+{
+    if (!location.proxyHeader) { return boost::none; }
+
+    if (const auto *header = request.getHeader(*location.proxyHeader)) {
+        const auto proxy(ba::trim_copy(*header));
+        if (location.allowedProxies.find(proxy)
+            == location.allowedProxies.end())
+        {
+            LOG(warn2)
+                << "Proxy <" << proxy << "> not allowed for location <"
+                << request.path << ">.";
+            return boost::none;
+        }
+        return proxy;
+    }
+    return boost::none;
 }
 
 void Vtsd::handleDataset(DeliveryCache &deliveryCache
@@ -218,7 +217,9 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
     {
         try {
             value.get()->handle
-                (sink, { file.string(), request.query }, location);
+                (sink, Location(file.string(), request.query
+                                , getProxy(location, request))
+                 , location);
         } catch (vs::NoSuchTileSet) {
             boost::system::error_code ec;
             auto status(fs::status(filePath, ec));

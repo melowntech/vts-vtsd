@@ -89,9 +89,11 @@ struct FileInfo {
 struct Location {
     std::string path;
     std::string query;
+    boost::optional<std::string> proxy;
 
-    Location(const std::string &path, const std::string &query)
-        : path(path), query(query)
+    Location(const std::string &path, const std::string &query
+             , const boost::optional<std::string> &proxy = boost::none)
+        : path(path), query(query), proxy(proxy)
     {}
 };
 

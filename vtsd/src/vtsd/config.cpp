@@ -58,6 +58,13 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "vts.builtinBrowserUrl").c_str()
          , po::value(&vars["VTS_BUILTIN_BROWSER_URL"])
          , "URL of built in browser.")
+        ((prefix + "proxyHeader").c_str()
+         , po::value<std::string>()
+         , "Name of proxy header.")
+        ((prefix + "allowedProxy").c_str()
+         , po::value<std::vector<std::string>>()
+         , "Allowed proxy name. Can be used multiple times. "
+         "Applicable only when proxyHeader is set.")
         ;
 
     fileClassSettings.configuration(od, prefix + "max-age.");
@@ -88,6 +95,19 @@ void LocationConfig::configure(const po::variables_map &vars
     if (match == Match::regex) {
         regex = boost::in_place(location);
     }
+
+    const auto proxyHeaderName(prefix + "proxyHeader");
+    if (vars.count(proxyHeaderName)) {
+        proxyHeader = vars[proxyHeaderName].as<std::string>();
+    }
+
+    const auto allowedProxyName(prefix + "allowedProxy");
+    if (vars.count(allowedProxyName)) {
+        const auto raw(vars[allowedProxyName].as<std::vector<std::string>>());
+        allowedProxies.insert(raw.begin(), raw.end());
+    } else if (proxyHeader) {
+        throw po::required_option(allowedProxyName);
+    }
 }
 
 std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
@@ -116,6 +136,12 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         for (const auto &var : vars) {
             os << prefix << "variable " << var.first << " = "
                << var.second << "\n";
+        }
+
+        if (proxyHeader) {
+            os << prefix << "proxyHeader = " << *proxyHeader << "\n";
+            os << prefix << "allowedProxy = "
+               << utility::join(allowedProxies, ", ");
         }
     }
 
