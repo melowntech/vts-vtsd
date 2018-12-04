@@ -51,8 +51,6 @@ namespace vr = vtslibs::registry;
 
 namespace {
 
-typedef std::map<std::string, boost::filesystem::path> RegistryFiles;
-
 namespace ExtraFlags { enum {
     none = 0x0
     , enableTilesetInternals = 0x01
@@ -190,57 +188,114 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
     }
 }
 
-struct MapConfig {
-    std::string referenceFrameId;
-
+struct SerializedConfig {
     std::string data;
     vs::FileStat stat;
 
-    std::string dirsData;
-    vs::FileStat dirsStat;
+    SerializedConfig() = default;
 
-    RegistryFiles registryFiles;
+    SerializedConfig(std::string inData, std::time_t lastModified
+                   , const char *contentType)
+        : data(std::move(inData))
+        , stat(data.size(), lastModified, contentType)
+    {}
+};
 
-    template <typename Source, typename ...Args>
-    MapConfig(const Source &source, Args &&...args) {
-        // build map configuration
-        auto mc(source.mapConfig(args...));
-        referenceFrameId = mc.referenceFrame.id;
-        mc.srs.for_each([](vr::Srs &srs)
-        {
-            if (!srs.geoidGrid) { return; }
-            // geoid grid -> use only filename in definition
-            srs.geoidGrid->definition
-                = fs::path(srs.geoidGrid->definition).filename().string();
-        });
+struct BaseMapConfig {
+    std::string referenceFrameId;
+    SerializedConfig mapConfig;
+    SerializedConfig dirs;
 
-        // add services
-        vts::service::addLocal(mc);
-
+    BaseMapConfig(const vts::MapConfig &mc, std::time_t lastModified
+                  , const vts::MapConfigOptions *mco = nullptr)
+        : referenceFrameId(mc.referenceFrame.id)
+    {
         // serialize map configuration
         {
             std::ostringstream os;
-            saveMapConfig(mc, os);
-            data = os.str();
-
-            stat.lastModified = source.lastModified();
-            stat.size = data.size();
-            stat.contentType = vts::MapConfig::contentType;
+            saveMapConfig(mc, os, mco);
+            mapConfig = SerializedConfig(os.str(), lastModified
+                                         , vts::MapConfig::contentType);
         }
 
         // serialize dirs
         {
             std::ostringstream os;
-            saveDirs(mc, os);
-            dirsData = os.str();
-
-            dirsStat.lastModified = source.lastModified();
-            dirsStat.size = dirsData.size();
-            dirsStat.contentType = vts::MapConfig::contentType;
+            saveDirs(mc, os, mco);
+            dirs = SerializedConfig(os.str(), lastModified
+                                    , vts::MapConfig::contentType);
         }
-
     }
 };
+
+vts::MapConfig augmentMapConfig(vts::MapConfig &&mc)
+{
+    mc.srs.for_each([](vr::Srs &srs)
+    {
+        if (!srs.geoidGrid) { return; }
+        // geoid grid -> use only filename in definition
+        srs.geoidGrid->definition
+            = fs::path(srs.geoidGrid->definition).filename().string();
+    });
+
+    // add services
+    vts::service::addLocal(mc);
+
+    return std::move(mc);
+}
+
+struct MapConfig : BaseMapConfig {
+    template <typename Source>
+    MapConfig(const Source &source)
+        : BaseMapConfig(augmentMapConfig(source.mapConfig())
+                        , source.lastModified())
+    {}
+};
+
+struct MapConfigHolder {
+    vts::MapConfig mc_;
+
+    MapConfigHolder(vts::MapConfig &&mc)
+        : mc_(std::move(mc))
+    {}
+};
+
+class ProxiedMapConfig : private MapConfigHolder, BaseMapConfig {
+public:
+    template <typename Source>
+    ProxiedMapConfig(const Source &source)
+        : MapConfigHolder(augmentMapConfig(source.mapConfig()))
+        , BaseMapConfig(mc_, source.lastModified())
+    {}
+
+    SerializedConfig mapConfig(const vts::OProxy &proxy = boost::none) const;
+    SerializedConfig dirs(const vts::OProxy &proxy = boost::none) const;
+};
+
+SerializedConfig ProxiedMapConfig::mapConfig(const vts::OProxy &proxy) const
+{
+    if (!proxy) { return BaseMapConfig::mapConfig; }
+
+    vts::MapConfigOptions mco;
+    mco.proxy = proxy;
+    std::ostringstream os;
+    saveMapConfig(mc_, os, &mco);
+    return SerializedConfig
+        (os.str(), BaseMapConfig::mapConfig.stat.lastModified
+         , BaseMapConfig::mapConfig.stat.contentType);
+}
+
+SerializedConfig ProxiedMapConfig::dirs(const vts::OProxy &proxy) const
+{
+    if (!proxy) { return BaseMapConfig::dirs; }
+
+    vts::MapConfigOptions mco;
+    mco.proxy = proxy;
+    std::ostringstream os;
+    saveDirs(mc_, os, &mco);
+    return SerializedConfig(os.str(), BaseMapConfig::dirs.stat.lastModified
+                            , BaseMapConfig::dirs.stat.contentType);
+}
 
 struct Definition {
     std::string data;
@@ -417,7 +472,7 @@ void VtsTileSet::handle(Sink sink, const Location &location
     case FileInfo::Type::dirs: {
         const auto &mp(mapConfig());
         return sink.content
-            (mp.dirsData, fileinfo(mp.dirsStat, FileClass::ephemeral)); }
+            (mp.dirs.data, fileinfo(mp.dirs.stat, FileClass::ephemeral)); }
 
     case FileInfo::Type::file:
         if (info.file == vs::File::config) {
@@ -426,7 +481,8 @@ void VtsTileSet::handle(Sink sink, const Location &location
                 // serve updated map config
                 const auto &mp(mapConfig());
                 return sink.content
-                    (mp.data, fileinfo(mp.stat, FileClass::ephemeral)); }
+                    (mp.mapConfig.data, fileinfo(mp.mapConfig.stat
+                                                 , FileClass::ephemeral)); }
 
             case vts::FileFlavor::debug: {
                 const auto &def(definition());
@@ -534,10 +590,10 @@ public:
     static vts::Storage asStorage(const DriverWrapper::pointer &driver);
 
 private:
-    const MapConfig& mapConfig() { return mapConfig_(storage_); }
+    const ProxiedMapConfig& mapConfig() { return mapConfig_(storage_); }
 
     vts::Storage storage_;
-    LazyConfigHolder<MapConfig> mapConfig_;
+    LazyConfigHolder<ProxiedMapConfig> mapConfig_;
 };
 
 vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
@@ -557,14 +613,15 @@ void VtsStorage::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        const auto &mp(mapConfig());
-        return sink.content(mp.data, fileinfo(mp.stat, FileClass::ephemeral));
+        const auto &mc(mapConfig().mapConfig(location.proxy));
+        return sink.content
+            (mc.data, fileinfo(mc.stat, FileClass::ephemeral));
     }
 
     if (location.path == constants::Dirs) {
-        const auto &mp(mapConfig());
+        const auto &dirs(mapConfig().dirs(location.proxy));
         return sink.content
-            (mp.dirsData, fileinfo(mp.dirsStat, FileClass::ephemeral));
+            (dirs.data, fileinfo(dirs.stat, FileClass::ephemeral));
     }
 
     // unknonw file, let's test other members
@@ -620,7 +677,7 @@ public:
 
 private:
     vts::StorageView storageView_;
-    MapConfig mapConfig_;
+    ProxiedMapConfig mapConfig_;
 };
 
 void VtsStorageView::handle(Sink sink, const Location &location
@@ -629,16 +686,15 @@ void VtsStorageView::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        const auto &mc(mapConfig_);
+        const auto &mc(mapConfig_.mapConfig(location.proxy));
         return sink.content
             (mc.data, fileinfo(mc.stat, FileClass::ephemeral));
     }
 
     if (location.path == constants::Dirs) {
-        const auto &mc(mapConfig_);
+        const auto &dirs(mapConfig_.dirs(location.proxy));
         return sink.content
-            (mc.dirsData
-             , fileinfo(mc.dirsStat, FileClass::ephemeral));
+            (dirs.data, fileinfo(dirs.stat, FileClass::ephemeral));
     }
 
     // unknonw file, let's test other members
