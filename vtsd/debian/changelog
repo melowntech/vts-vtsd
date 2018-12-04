@@ -1,3 +1,9 @@
+vts-vtsd (1.21) stable; urgency=medium
+
+  * Proxy support in vts storage and storage view.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Tue, 04 Dec 2018 13:23:32 +0100
+
 vts-vtsd (1.20) stable; urgency=medium
 
   * Files tileset.conf and tileset.registry are treated as ephemeral and are not cached.
