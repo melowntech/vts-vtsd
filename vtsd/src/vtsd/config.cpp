@@ -101,12 +101,24 @@ void LocationConfig::configure(const po::variables_map &vars
         proxyHeader = vars[proxyHeaderName].as<std::string>();
     }
 
-    const auto allowedProxyName(prefix + "allowedProxy");
-    if (vars.count(allowedProxyName)) {
-        const auto raw(vars[allowedProxyName].as<std::vector<std::string>>());
-        allowedProxies.insert(raw.begin(), raw.end());
-    } else if (proxyHeader) {
-        throw po::required_option(allowedProxyName);
+    if (proxyHeader) {
+        const auto allowedProxyName(prefix + "allowedProxy");
+        if (vars.count(allowedProxyName)) {
+            const auto raw
+                (vars[allowedProxyName].as<std::vector<std::string>>());
+            allowedProxies.insert(raw.begin(), raw.end());
+        }
+
+        // not present or empty?
+        if (allowedProxies.empty()) {
+            throw po::required_option(allowedProxyName);
+        }
+
+        for (const auto &proxy : allowedProxies) {
+            if (proxy.empty()) {
+                throw po::required_option(allowedProxyName);
+            }
+        }
     }
 }
 
@@ -141,7 +153,7 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         if (proxyHeader) {
             os << prefix << "proxyHeader = " << *proxyHeader << "\n";
             os << prefix << "allowedProxy = "
-               << utility::join(allowedProxies, ", ");
+               << utility::join(allowedProxies, ", ") << "\n";
         }
     }
 

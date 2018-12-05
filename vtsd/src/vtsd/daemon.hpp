@@ -74,6 +74,9 @@ protected:
     virtual void generate_impl(const http::Request &request
                                , const http::ServerSink::pointer &sink);
 
+protected:
+    bool proxiesConfigured() const { return proxiesConfigured_; }
+
 private:
     /** Called for matched dataset-serving location.
      */
@@ -136,6 +139,8 @@ private:
     boost::optional<http::Http> http_;
 
     boost::optional<DeliveryCache> deliveryCache_;
+
+    bool proxiesConfigured_;
 };
 
 #endif // vtsd_daemon_hpp_included_

@@ -166,15 +166,17 @@ bool Vtsd::help(std::ostream &out, const std::string &what) const
 DeliveryCache::OpenDriver Vtsd::openDriver()
 {
     return DeliveryCache::OpenDriver
-        ([](const std::string &path, const OpenOptions &openOptions
-            , DeliveryCache &cache, const DeliveryCache::Callback &callback)
+        ([this](const std::string &path, const OpenOptions &openOptions
+                , DeliveryCache &cache
+                , const DeliveryCache::Callback &callback)
          -> DeliveryCache::Driver
          {
              LOG(info2) << "Opening driver for \"" << path << "\".";
 
              // try VTS
              try {
-                 return openVts(path, openOptions, cache, callback);
+                 return openVts(path, openOptions, cache, callback
+                                , proxiesConfigured());
              } catch (vs::NoSuchTileSet) {}
 
              // finally try VTS0

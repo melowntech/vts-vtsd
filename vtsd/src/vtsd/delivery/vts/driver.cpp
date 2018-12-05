@@ -43,11 +43,13 @@
 #include "vts-libs/vts/service.hpp"
 
 #include "./driver.hpp"
+#include "./mapconfig.hpp"
 
 namespace fs = boost::filesystem;
 namespace vts = vtslibs::vts;
 namespace vs = vtslibs::storage;
 namespace vr = vtslibs::registry;
+namespace mc = mapconfig;
 
 namespace {
 
@@ -188,167 +190,6 @@ VtsFileInfo::VtsFileInfo(const std::string &p, const LocationConfig &config
     }
 }
 
-struct SerializedConfig {
-    std::string data;
-    vs::FileStat stat;
-
-    SerializedConfig() = default;
-
-    SerializedConfig(std::string inData, std::time_t lastModified
-                   , const char *contentType)
-        : data(std::move(inData))
-        , stat(data.size(), lastModified, contentType)
-    {}
-};
-
-struct BaseMapConfig {
-    std::string referenceFrameId;
-    SerializedConfig mapConfig;
-    SerializedConfig dirs;
-
-    BaseMapConfig(const vts::MapConfig &mc, std::time_t lastModified
-                  , const vts::MapConfigOptions *mco = nullptr)
-        : referenceFrameId(mc.referenceFrame.id)
-    {
-        // serialize map configuration
-        {
-            std::ostringstream os;
-            saveMapConfig(mc, os, mco);
-            mapConfig = SerializedConfig(os.str(), lastModified
-                                         , vts::MapConfig::contentType);
-        }
-
-        // serialize dirs
-        {
-            std::ostringstream os;
-            saveDirs(mc, os, mco);
-            dirs = SerializedConfig(os.str(), lastModified
-                                    , vts::MapConfig::contentType);
-        }
-    }
-};
-
-vts::MapConfig augmentMapConfig(vts::MapConfig &&mc)
-{
-    mc.srs.for_each([](vr::Srs &srs)
-    {
-        if (!srs.geoidGrid) { return; }
-        // geoid grid -> use only filename in definition
-        srs.geoidGrid->definition
-            = fs::path(srs.geoidGrid->definition).filename().string();
-    });
-
-    // add services
-    vts::service::addLocal(mc);
-
-    return std::move(mc);
-}
-
-struct MapConfig : BaseMapConfig {
-    template <typename Source>
-    MapConfig(const Source &source)
-        : BaseMapConfig(augmentMapConfig(source.mapConfig())
-                        , source.lastModified())
-    {}
-};
-
-struct MapConfigHolder {
-    vts::MapConfig mc_;
-
-    MapConfigHolder(vts::MapConfig &&mc)
-        : mc_(std::move(mc))
-    {}
-};
-
-class ProxiedMapConfig : private MapConfigHolder, BaseMapConfig {
-public:
-    template <typename Source>
-    ProxiedMapConfig(const Source &source)
-        : MapConfigHolder(augmentMapConfig(source.mapConfig()))
-        , BaseMapConfig(mc_, source.lastModified())
-    {}
-
-    SerializedConfig mapConfig(const vts::OProxy &proxy = boost::none) const;
-    SerializedConfig dirs(const vts::OProxy &proxy = boost::none) const;
-};
-
-SerializedConfig ProxiedMapConfig::mapConfig(const vts::OProxy &proxy) const
-{
-    if (!proxy) { return BaseMapConfig::mapConfig; }
-
-    vts::MapConfigOptions mco;
-    mco.proxy = proxy;
-    std::ostringstream os;
-    saveMapConfig(mc_, os, &mco);
-    return SerializedConfig
-        (os.str(), BaseMapConfig::mapConfig.stat.lastModified
-         , BaseMapConfig::mapConfig.stat.contentType);
-}
-
-SerializedConfig ProxiedMapConfig::dirs(const vts::OProxy &proxy) const
-{
-    if (!proxy) { return BaseMapConfig::dirs; }
-
-    vts::MapConfigOptions mco;
-    mco.proxy = proxy;
-    std::ostringstream os;
-    saveDirs(mc_, os, &mco);
-    return SerializedConfig(os.str(), BaseMapConfig::dirs.stat.lastModified
-                            , BaseMapConfig::dirs.stat.contentType);
-}
-
-struct Definition {
-    std::string data;
-    vs::FileStat stat;
-    std::string debugData;
-    vs::FileStat debugStat;
-
-    template <typename Source>
-    Definition(const Source &source, const std::string &referenceFrameId) {
-        const auto mtc(source.meshTilesConfig());
-
-        {
-            const auto fl(vts::freeLayer(mtc));
-
-            std::ostringstream os;
-            vr::saveFreeLayer(os, fl);
-            data = os.str();
-
-            stat.lastModified = source.lastModified();
-            stat.size = data.size();
-            stat.contentType = vts::MeshTilesConfig::contentType;
-        }
-
-        {
-            const auto dc(vts::debugConfig(mtc, referenceFrameId));
-
-            std::ostringstream os;
-            vts::saveDebug(os, dc);
-            debugData = os.str();
-
-            debugStat.lastModified = source.lastModified();
-            debugStat.size = debugData.size();
-            debugStat.contentType = vts::DebugConfig::contentType;
-        }
-    }
-};
-
-template <typename T>
-class LazyConfigHolder {
-public:
-    LazyConfigHolder() = default;
-
-    template <typename ...Args> T& operator()(Args &&...args) const {
-        std::lock_guard<std::mutex> guard(mutex_);
-        if (!data_) { data_ = boost::in_place(std::forward<Args>(args)...); }
-        return *data_;
-    }
-
-private:
-    mutable std::mutex mutex_;
-    mutable boost::optional<T> data_;
-};
-
 class VtsTileSet : public DriverWrapper
 {
 public:
@@ -376,15 +217,12 @@ public:
     asDriver(const DriverWrapper::pointer &driver);
 
 private:
-    const MapConfig& mapConfig() { return mapConfig_(*delivery_); }
-
-    const Definition& definition() {
-        return definition_(*delivery_, mapConfig().referenceFrameId);
-    }
+    const mc::MapConfig& mapConfig() { return mapConfig_(*delivery_); }
+    const mc::Definition& definition() { return definition_(*delivery_); }
 
     vts::Delivery::pointer delivery_;
-    LazyConfigHolder<MapConfig> mapConfig_;
-    LazyConfigHolder<Definition> definition_;
+    mc::LazyConfigHolder<mc::MapConfig> mapConfig_;
+    mc::LazyConfigHolder<mc::Definition> definition_;
     std::mutex mutex_;
 };
 
@@ -464,31 +302,21 @@ void VtsTileSet::handle(Sink sink, const Location &location
     });
 
     switch (info.type) {
-    case FileInfo::Type::definition: {
-        const auto &def(definition());
-        return sink.content
-            (def.data, fileinfo(def.stat, FileClass::ephemeral)); }
+    case FileInfo::Type::definition:
+        return definition().def.send(sink);
 
-    case FileInfo::Type::dirs: {
-        const auto &mp(mapConfig());
-        return sink.content
-            (mp.dirs.data, fileinfo(mp.dirs.stat, FileClass::ephemeral)); }
+    case FileInfo::Type::dirs:
+        return mapConfig().dirs.send(sink);
 
     case FileInfo::Type::file:
         if (info.file == vs::File::config) {
             switch (info.flavor) {
-            case vts::FileFlavor::regular: {
+            case vts::FileFlavor::regular:
                 // serve updated map config
-                const auto &mp(mapConfig());
-                return sink.content
-                    (mp.mapConfig.data, fileinfo(mp.mapConfig.stat
-                                                 , FileClass::ephemeral)); }
+                return mapConfig().send(sink);
 
-            case vts::FileFlavor::debug: {
-                const auto &def(definition());
-                return sink.content
-                    (def.debugData
-                     , fileinfo(def.debugStat, FileClass::ephemeral)); }
+            case vts::FileFlavor::debug:
+                return definition().debug.send(sink);
 
             case vts::FileFlavor::raw:
                 return sendRawFile(FileClass::ephemeral);
@@ -572,8 +400,9 @@ VtsTileSet::asDriver(const DriverWrapper::pointer &driver)
 class VtsStorage : public DriverWrapper
 {
 public:
-    VtsStorage(vts::Storage &&storage)
+    VtsStorage(vts::Storage &&storage, bool proxiesAllowed)
         : storage_(std::move(storage))
+        , proxiesAllowed_(proxiesAllowed)
     {}
 
     virtual vs::Resources resources() const {
@@ -590,10 +419,13 @@ public:
     static vts::Storage asStorage(const DriverWrapper::pointer &driver);
 
 private:
-    const ProxiedMapConfig& mapConfig() { return mapConfig_(storage_); }
+    const mc::PotentiallyProxiedMapConfig& mapConfig() {
+        return mapConfig_(storage_, proxiesAllowed_);
+    }
 
     vts::Storage storage_;
-    LazyConfigHolder<ProxiedMapConfig> mapConfig_;
+    bool proxiesAllowed_;
+    mc::PotentiallyProxiedMapConfig::Lazy mapConfig_;
 };
 
 vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
@@ -613,15 +445,11 @@ void VtsStorage::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        const auto &mc(mapConfig().mapConfig(location.proxy));
-        return sink.content
-            (mc.data, fileinfo(mc.stat, FileClass::ephemeral));
+        return mapConfig().sendMapConfig(sink, location.proxy);
     }
 
     if (location.path == constants::Dirs) {
-        const auto &dirs(mapConfig().dirs(location.proxy));
-        return sink.content
-            (dirs.data, fileinfo(dirs.stat, FileClass::ephemeral));
+        return mapConfig().sendDirs(sink, location.proxy);
     }
 
     // unknonw file, let's test other members
@@ -655,8 +483,10 @@ void VtsStorage::handle(Sink sink, const Location &location
 class VtsStorageView : public DriverWrapper
 {
 public:
-    VtsStorageView(vts::StorageView storageView)
-        : storageView_(std::move(storageView)), mapConfig_(storageView_)
+    VtsStorageView(vts::StorageView storageView, bool proxiesAllowed)
+        : storageView_(std::move(storageView))
+        , mapConfig_(mc::PotentiallyProxiedMapConfig::factory
+                     (storageView_, proxiesAllowed))
     {}
 
     virtual vs::Resources resources() const {
@@ -677,7 +507,7 @@ public:
 
 private:
     vts::StorageView storageView_;
-    ProxiedMapConfig mapConfig_;
+    mc::PotentiallyProxiedMapConfig::pointer mapConfig_;
 };
 
 void VtsStorageView::handle(Sink sink, const Location &location
@@ -686,15 +516,11 @@ void VtsStorageView::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        const auto &mc(mapConfig_.mapConfig(location.proxy));
-        return sink.content
-            (mc.data, fileinfo(mc.stat, FileClass::ephemeral));
+        return mapConfig_->sendMapConfig(sink, location.proxy);
     }
 
     if (location.path == constants::Dirs) {
-        const auto &dirs(mapConfig_.dirs(location.proxy));
-        return sink.content
-            (dirs.data, fileinfo(dirs.stat, FileClass::ephemeral));
+        return mapConfig_->sendDirs(sink, location.proxy);
     }
 
     // unknonw file, let's test other members
@@ -865,13 +691,16 @@ void asyncOpenStorage(const fs::path &path, DeliveryCache &cache
 DriverWrapper::pointer
 openStorageView(const std::string &path
                 , DeliveryCache &cache, bool forcedReopen
+                , bool proxiesAllowed
                 , const DeliveryCache::Callback &callback)
 {
     struct StorageViewOpenCallback : vts::StorageViewOpenCallback {
         StorageViewOpenCallback(DeliveryCache &cache
                                 , const DeliveryCache::Callback &callback
-                                , bool forcedReopen)
+                                , bool forcedReopen
+                                , bool proxiesAllowed)
             : cache(cache), callback(callback), forcedReopen(forcedReopen)
+            , proxiesAllowed(proxiesAllowed)
         {}
 
         virtual void error(const std::exception_ptr &exc) {
@@ -881,7 +710,7 @@ openStorageView(const std::string &path
         virtual void done(vts::StorageView storageView) {
             callback(DriverWrapper::pointer
                      (std::make_shared<VtsStorageView>
-                      (std::move(storageView))));
+                      (std::move(storageView), proxiesAllowed)));
         }
 
         virtual void openStorage(const boost::filesystem::path &path
@@ -894,11 +723,12 @@ openStorageView(const std::string &path
         DeliveryCache &cache;
         const DeliveryCache::Callback callback;
         bool forcedReopen;
+        bool proxiesAllowed;
     };
 
     // async open
     vts::openStorageView(path, std::make_shared<StorageViewOpenCallback>
-                         (cache, callback, forcedReopen));
+                         (cache, callback, forcedReopen, proxiesAllowed));
 
     // nothing available so far
     return {};
@@ -969,18 +799,22 @@ openTileSet(const std::string &path
 DriverWrapper::pointer openVts(const std::string &path
                                , const OpenOptions &openOptions
                                , DeliveryCache &cache
-                               , const DeliveryCache::Callback &callback)
+                               , const DeliveryCache::Callback &callback
+                               , bool proxiesAllowed)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:
         return openTileSet(path, cache, openOptions, callback);
 
     case vts::DatasetType::Storage:
-        return std::make_shared<VtsStorage>(vts::openStorage(path));
+        // TODO: make async as well
+        return std::make_shared<VtsStorage>
+            (vts::openStorage(path), proxiesAllowed);
 
     case vts::DatasetType::StorageView:
         return openStorageView
-            (path, cache, openOptions.forcedReopen, callback);
+            (path, cache, openOptions.forcedReopen, proxiesAllowed
+             , callback);
 
     case vts::DatasetType::TileIndex:
         return std::make_shared<VtsTileIndex>(path);

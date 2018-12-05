@@ -33,6 +33,7 @@
 DriverWrapper::pointer openVts(const std::string &path
                                , const OpenOptions &openOptions
                                , DeliveryCache &cache
-                               , const DeliveryCache::Callback &callback);
+                               , const DeliveryCache::Callback &callback
+                               , bool proxiesConfigured);
 
 #endif // libvtslibs_http_vts_driver_hpp_included_

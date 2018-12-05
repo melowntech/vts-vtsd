@@ -73,8 +73,7 @@ public:
     ~DeliveryCache();
 
 
-
-/** Calls callback with driver for given path. Call is immediated if driver
+    /** Calls callback with driver for given path. Call is immediated if driver
      *  is already open or postponed until driver is available.
      *
      * \param path filesystem path of dataset to open

@@ -38,8 +38,6 @@
 #include "../sink.hpp"
 #include "../config.hpp"
 
-#include "../sink.hpp"
-
 namespace vs = vtslibs::storage;
 
 /** Can be thrown by handler to force redirect.
@@ -114,11 +112,11 @@ public:
      */
     virtual bool hotContent() const { return false; }
 
-    Sink::FileInfo fileinfo(const vs::FileStat &fileStat, FileClass fc);
-    Sink::FileInfo fileinfo(const vs::FileStat &fileStat
-                            , const boost::optional<long> &maxAge
-                            = boost::none);
-    Sink::FileInfo fileinfo(const vs::SupportFile &file, FileClass fc);
+    static Sink::FileInfo fileinfo(const vs::FileStat &fileStat, FileClass fc);
+    static Sink::FileInfo fileinfo(const vs::FileStat &fileStat
+                                   , const boost::optional<long> &maxAge
+                                   = boost::none);
+    static Sink::FileInfo fileinfo(const vs::SupportFile &file, FileClass fc);
 };
 
 // inlines

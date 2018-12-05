@@ -28,6 +28,7 @@
 #include <utility>
 #include <functional>
 #include <map>
+#include <numeric>
 
 #include <boost/utility/in_place_factory.hpp>
 #include <boost/filesystem.hpp>
@@ -62,6 +63,7 @@ Daemon::Daemon(const std::string &name, const std::string &version
     , httpThreadCount_(boost::thread::hardware_concurrency())
     , coreThreadCount_(boost::thread::hardware_concurrency())
     , defaultConfig_(defaultConfig)
+    , proxiesConfigured_(false)
 {
     openOptions_
         .ioRetries(1)
@@ -152,6 +154,13 @@ void Daemon::configureImpl(const po::variables_map &vars)
 
     // sort locations:
     {
+        proxiesConfigured_
+            = std::accumulate(locations_.begin(), locations_.end(), 0
+                              , [](int count, const LocationConfig &l)
+                              {
+                                  return count + l.allowedProxies.size();
+                              });
+
         // grab prefix locations
         std::copy_if(locations_.begin(), locations_.end()
                      , std::back_inserter(prefixLocations_)

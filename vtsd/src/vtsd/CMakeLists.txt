@@ -1,4 +1,3 @@
-
 # vtsd - vts delivery daemon
 define_module(BINARY vtsd
   DEPENDS
@@ -27,6 +26,9 @@ set(vtsd-internals_SOURCES
 
   # VTS
   delivery/vts/driver.hpp delivery/vts/driver.cpp
+  delivery/vts/mapconfig.hpp delivery/vts/mapconfig.cpp
+
+  # VTS0
   delivery/vts0/driver.hpp delivery/vts0/driver.cpp
 
   # SLPK
