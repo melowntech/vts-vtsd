@@ -94,6 +94,10 @@ public:
     void post(const DeliveryCache::Callback &callback
               , const std::function<void()> &callable);
 
+    /** Statistics.
+     */
+    void stat(std::ostream &os) const;
+
 private:
     class Detail;
     std::unique_ptr<Detail> workers_;

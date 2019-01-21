@@ -114,10 +114,13 @@ private:
     virtual int run();
 
     // service::Service
+    virtual void cleanup();
+
+    // service::Service
     virtual void stat(std::ostream &os);
 
     // service::Service
-    virtual void cleanup();
+    virtual void monitor(std::ostream &os);
 
     struct Stopper {
         Stopper(Daemon &d) : d(d) { }

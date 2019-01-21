@@ -173,6 +173,8 @@ public:
     void post(const DeliveryCache::Callback &callback
               , const std::function<void()> &callable);
 
+    void stat(std::ostream &os) const;
+
 private:
     void open(Record &record, bool forcedReopen);
     void finishOpen(Record &record, const Expected &value);
@@ -596,4 +598,14 @@ void DeliveryCache::Detail::check()
     for (const auto &rw : toRemove) {
         if (!rw.reopened()) { erase(rw.idrivers); }
     }
+}
+
+void DeliveryCache::Detail::stat(std::ostream &os) const
+{
+    (void) os;
+}
+
+void DeliveryCache::stat(std::ostream &os) const
+{
+    return workers_->stat(os);
 }

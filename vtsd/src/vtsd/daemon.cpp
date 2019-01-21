@@ -250,14 +250,20 @@ void Daemon::cleanup()
 
 void Daemon::stat(std::ostream &os)
 {
-    os << "TODO: report stat here";
+    http_->stat(os);
+    deliveryCache_->stat(os);
+}
+
+void Daemon::monitor(std::ostream &os)
+{
+    (void) os;
 }
 
 int Daemon::run()
 {
     try {
         while (Service::isRunning()) {
-            ::usleep(500000);
+            ::usleep(100000);
         }
     } catch (AbandonAll) {
         return EXIT_FAILURE;
