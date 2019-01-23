@@ -4,6 +4,9 @@ THIS="vtsd_"
 NAME=$(basename "$0")
 INSTANCE="${NAME#${THIS}}"
 
+# normalize name
+NAME=$(echo $NAME | tr - _)
+
 if [ "${INSTANCE}" = "" ]; then
     echo "Make a symlink of format ${THIS}INSTANCE to this file to monitor vtsd INSTANCE."  >/dev/stderr
     exit 1
@@ -14,21 +17,29 @@ CTRL="/var/run/${INSTANCE}.ctrl"
 function config() {
     cat <<EOF
 graph_title VTSD ${INSTANCE} HTTP traffic
-graph_category vtsd
+graph_category vts
 graph_vlabel req/sec
-http_requests_max.label 5-minute maximum of HTTP requests per second
-http_requests_max.draw AREA
-http_requests_avg.label 5-minute average of HTTP requests per second
-http_requests_avg.draw LINE
+${NAME}_http_requests_max.label maximum number of HTTP req/sec
+${NAME}_http_requests_max.draw AREA
+${NAME}_http_requests_avg.label average number of HTTP req/sec
+${NAME}_http_requests_avg.draw LINE
 EOF
 }
 
 function fetch() {
-    echo stat | socat -T2 - "UNIX-CONNECT:${CTRL}" | gawk -f <(cat <<EOF
+    echo '!stat' | socat -T2 - "UNIX-CONNECT:${CTRL}" | gawk -f <(cat <<EOF
 BEGIN { FS="="; }
 
-/http.requests.avg.300/ { printf("http_requests_avg %s\n", \$2); }
-/http.requests.max.300/ { printf("http_requests_max %s\n", \$2); }
+/http.requests.avg.300/ { http_avg = \$2; }
+/http.requests.max.300/ { http_max = \$2; }
+
+END {
+    # sanity check
+    if (!NR) { exit 1; }
+
+    printf("${NAME}_http_requests_avg.value %s\n", http_avg);
+    printf("${NAME}_http_requests_max.value %s\n", http_max);
+}
 
 EOF
 )

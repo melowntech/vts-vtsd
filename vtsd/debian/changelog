@@ -1,3 +1,10 @@
+vts-vtsd (1.26) stable; urgency=medium
+
+  * Tag-selected tilesets in storageview are renamed to tileset base ID.
+  * Added munin plugin /opt/vts/munin/vtsd_.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Tue, 22 Jan 2019 16:28:29 +0100
+
 vts-vtsd (1.25) stable; urgency=medium
 
   * Storageview's external changed detector watches external mapconfigs as well.
