@@ -1,0 +1,44 @@
+#!/bin/bash
+
+THIS="vtsd_"
+NAME=$(basename "$0")
+INSTANCE="${NAME#${THIS}}"
+
+if [ "${INSTANCE}" = "" ]; then
+    echo "Make a symlink of format ${THIS}INSTANCE to this file to monitor vtsd INSTANCE."  >/dev/stderr
+    exit 1
+fi
+
+CTRL="/var/run/${INSTANCE}.ctrl"
+
+function config() {
+    cat <<EOF
+graph_title VTSD ${INSTANCE} HTTP traffic
+graph_category vtsd
+graph_vlabel req/sec
+http_requests_max.label 5-minute maximum of HTTP requests per second
+http_requests_max.draw AREA
+http_requests_avg.label 5-minute average of HTTP requests per second
+http_requests_avg.draw LINE
+EOF
+}
+
+function fetch() {
+    echo stat | socat -T2 - "UNIX-CONNECT:${CTRL}" | gawk -f <(cat <<EOF
+BEGIN { FS="="; }
+
+/http.requests.avg.300/ { printf("http_requests_avg %s\n", \$2); }
+/http.requests.max.300/ { printf("http_requests_max %s\n", \$2); }
+
+EOF
+)
+
+}
+
+case $1 in
+    config)
+        config
+        exit 0;;
+esac
+
+fetch
