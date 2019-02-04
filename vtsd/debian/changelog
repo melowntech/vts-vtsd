@@ -1,3 +1,13 @@
+vts-vtsd (1.28) stable; urgency=medium
+
+  * some config files (e.g. mapConfig.json) are by default in ephemeral file
+    class (i.e. no-cache) but can be moved to config class (configurable
+    caching) via location<...>.configClass = config
+  * Cache-Control now supports max-age with stale-while-revalidate extension;
+    enabled via location<...>.stale-while-revalidate.CLASS = value  
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Mon, 04 Feb 2019 17:24:35 +0100
+
 vts-vtsd (1.27) stable; urgency=medium
 
   * mapconfig: added generic options support to view
