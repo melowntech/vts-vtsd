@@ -523,7 +523,7 @@ struct RecordWrapper {
 
 void DeliveryCache::Detail::check()
 {
-    LOG(info2) << "Maintenance check.";
+    LOG(info1) << "Maintenance check.";
 
     // grab drivers (under lock)
     RecordWrapper::list records;

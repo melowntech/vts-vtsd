@@ -32,31 +32,49 @@ void FileClassSettings
 ::configuration(po::options_description &od, const std::string &prefix)
 {
     auto ao(od.add_options());
-    for (auto fc : enumerationValues(FileClass())) {
-        // do allow configuration of defined file classes
-        switch (fc) {
-        case FileClass::unknown:
-        case FileClass::ephemeral:
-            continue;
-        default:
-            if (!allowed(fc)) { continue; }
-        }
 
-        auto name(boost::lexical_cast<std::string>(fc));
-        ao((prefix + name).c_str()
-           , po::value(&maxAges_[static_cast<int>(fc)])
-           ->required()->default_value(maxAges_[static_cast<int>(fc)])
-           , ("Max age of file class <" + name
-              + ">; >=0: Cache-Control: max-age, <0: Cache-Control=no-cache")
-           .c_str());
-    }
+    const auto registerTimes([&](Times &times, const std::string &prefix
+                                 , const std::string &what
+                                 , const std::string &help)
+    {
+        for (auto fc : enumerationValues(FileClass())) {
+            switch (fc) {
+            case FileClass::unknown:
+            case FileClass::ephemeral:
+                continue;
+            default:
+                if (!allowed(fc)) { continue; }
+            }
+
+            auto name(boost::lexical_cast<std::string>(fc));
+            ao((prefix + name).c_str()
+               , po::value(&times[static_cast<int>(fc)])
+               ->required()->default_value(times[static_cast<int>(fc)])
+               , (what + " of file class <" + name + ">; " + help).c_str());
+        }
+    });
+
+    registerTimes(maxAges_, prefix + "max-age."
+                  , "Max age"
+                  , ">=0: Cache-Control: max-age=???, "
+                  "<0: Cache-Control=no-cache.");
+
+    registerTimes(staleWhileRevalidate_, prefix + "stale-while-revalidate."
+                  , "Stale-while-revalidate value "
+                  , "if >0: adds stale-while-revalidate=??? after max-age.");
 }
 
 void FileClassSettings::dump(std::ostream &os, const std::string &prefix)
     const
 {
-    for (auto fc : enumerationValues(FileClass())) {
-        if (!allowed(fc)) { continue; }
-        os << prefix << fc << " = " << getMaxAge(fc) << "\n";
-    }
+    auto dump([&](const Times &times, const std::string &prefix)
+    {
+        for (auto fc : enumerationValues(FileClass())) {
+            if (!allowed(fc)) { continue; }
+            os << prefix << fc << " = " << times[static_cast<int>(fc)] << "\n";
+        }
+    });
+
+    dump(maxAges_, prefix + "max-age.");
+    dump(staleWhileRevalidate_, prefix + "stale-while-revalidate.");
 }

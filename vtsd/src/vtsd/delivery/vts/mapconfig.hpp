@@ -68,7 +68,7 @@ struct SerializedConfig {
     SerializedConfig() = default;
 
     SerializedConfig(std::string inData, std::time_t lastModified
-                   , const char *contentType)
+                     , const char *contentType)
         : data(std::move(inData))
         , stat(data.size(), lastModified, contentType)
     {}
@@ -81,9 +81,9 @@ struct SerializedConfig {
             (this->data.size(), lastModified, contentType);
     }
 
-    void send(Sink &sink) const {
+    void send(Sink &sink, FileClass fileClass) const {
         sink.content
-            (data, DriverWrapper::fileinfo(stat, FileClass::ephemeral));
+            (data, DriverWrapper::fileinfo(stat, fileClass));
     }
 };
 
@@ -107,8 +107,10 @@ public:
     typedef std::unique_ptr<PotentiallyProxiedMapConfig> pointer;
     virtual ~PotentiallyProxiedMapConfig() {}
 
-    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy) const = 0;
-    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy) const = 0;
+    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy
+                               , FileClass fileClass) const = 0;
+    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy
+                          , FileClass fileClass) const = 0;
 
     template <typename Source>
     static pointer factory(const Source &source, bool proxiesAllowed);
@@ -147,8 +149,10 @@ public:
         : MapConfig(source)
     {}
 
-    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy) const;
-    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy) const;
+    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy
+                               , FileClass fileClass) const;
+    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy
+                          , FileClass fileClass) const;
 };
 
 class ProxiedMapConfig : public PotentiallyProxiedMapConfig
@@ -160,8 +164,10 @@ public:
         , lastModified_(source.lastModified())
     {}
 
-    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy) const;
-    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy) const;
+    virtual void sendMapConfig(Sink &sink, const vts::OProxy &proxy
+                               , FileClass fileClass) const;
+    virtual void sendDirs(Sink &sink, const vts::OProxy &proxy
+                          , FileClass fileClass) const;
 
 private:
     vts::MapConfig mc_;

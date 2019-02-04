@@ -65,9 +65,13 @@ void LocationConfig::configuration(po::options_description &od
          , po::value<std::vector<std::string>>()
          , "Allowed proxy name. Can be used multiple times. "
          "Applicable only when proxyHeader is set.")
+        ((prefix + "configClass").c_str()
+         , po::value(&configClass)->default_value(configClass)->required()
+         , "Config files (e.g. mapConfig.json, freelayer.json, dirs.json, ...)"
+         " file class. Allowed values are \"ephemeral\" and \"config\" only.")
         ;
 
-    fileClassSettings.configuration(od, prefix + "max-age.");
+    fileClassSettings.configuration(od, prefix);
 }
 
 void LocationConfig::configure(const po::variables_map &vars
@@ -120,6 +124,18 @@ void LocationConfig::configure(const po::variables_map &vars
             }
         }
     }
+
+    switch (configClass) {
+        case FileClass::ephemeral:
+        case FileClass::config:
+            break;
+
+    default:
+        throw po::validation_error
+            (po::validation_error::invalid_option_value
+             , prefix + "configClass"
+             , boost::lexical_cast<std::string>(configClass));
+    }
 }
 
 std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
@@ -157,7 +173,8 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         }
     }
 
-    fileClassSettings.dump(os, prefix + "max-age.");
+    os << prefix << "configClass = " << configClass << "\n";
+    fileClassSettings.dump(os, prefix);
 
     return os;
 }

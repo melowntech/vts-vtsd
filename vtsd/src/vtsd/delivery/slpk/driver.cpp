@@ -118,7 +118,7 @@ DriverWrapper::pointer openSlpk(const std::string &path
                                , const DeliveryCache::Callback &callback)
 {
     // TODO: check mime
-    LOG(info4) << "about to open <" << path << ">";
+    LOG(info1) << "about to open <" << path << ">";
 
     cache.post(callback, [=]() -> void
     {

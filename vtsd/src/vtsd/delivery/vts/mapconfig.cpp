@@ -65,18 +65,21 @@ BaseMapConfig::BaseMapConfig(const vts::MapConfig &mc, std::time_t lastModified)
     }
 }
 
-void SimpleMapConfig::sendMapConfig(Sink &sink, const vts::OProxy&)
+void SimpleMapConfig::sendMapConfig(Sink &sink, const vts::OProxy&
+                                    , FileClass fileClass)
     const
 {
-    send(sink);
+    send(sink, fileClass);
 }
 
-void SimpleMapConfig::sendDirs(Sink &sink, const vts::OProxy&) const
+void SimpleMapConfig::sendDirs(Sink &sink, const vts::OProxy&
+                               , FileClass fileClass) const
 {
-    dirs.send(sink);
+    dirs.send(sink, fileClass);
 }
 
-void ProxiedMapConfig::sendMapConfig(Sink &sink, const vts::OProxy &proxy)
+void ProxiedMapConfig::sendMapConfig(Sink &sink, const vts::OProxy &proxy
+                                     , FileClass fileClass)
     const
 {
     vts::MapConfigOptions mco;
@@ -85,10 +88,12 @@ void ProxiedMapConfig::sendMapConfig(Sink &sink, const vts::OProxy &proxy)
     saveMapConfig(mc_, os, &mco);
 
     return SerializedConfig
-        (os.str(), lastModified_, vts::MapConfig::contentType).send(sink);
+        (os.str(), lastModified_, vts::MapConfig::contentType)
+        .send(sink, fileClass);
 }
 
-void ProxiedMapConfig::sendDirs(Sink &sink, const vts::OProxy &proxy) const
+void ProxiedMapConfig::sendDirs(Sink &sink, const vts::OProxy &proxy
+                                , FileClass fileClass) const
 {
     vts::MapConfigOptions mco;
     mco.proxy = proxy;
@@ -96,7 +101,8 @@ void ProxiedMapConfig::sendDirs(Sink &sink, const vts::OProxy &proxy) const
     saveDirs(mc_, os, &mco);
 
     return SerializedConfig
-        (os.str(), lastModified_, vts::MapConfig::contentType).send(sink);
+        (os.str(), lastModified_, vts::MapConfig::contentType)
+        .send(sink, fileClass);
 }
 
 void Definition::init(const vts::MeshTilesConfig &mtc

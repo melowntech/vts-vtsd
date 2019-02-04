@@ -9,3 +9,6 @@ core
 .gdb_history
 
 output
+
+*.pid
+*.ctrl

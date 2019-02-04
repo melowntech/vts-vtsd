@@ -41,27 +41,42 @@ namespace fs = boost::filesystem;
 
 namespace {
 
-boost::optional<long> maxAge(FileClass fileClass
-                             , const FileClassSettings *fileClassSettings)
+http::SinkBase::CacheControl
+cacheControl(FileClass fileClass, const FileClassSettings *fileClassSettings)
 {
-    if (!fileClassSettings) { return boost::none; }
-    return fileClassSettings->getMaxAge(fileClass);
+    http::SinkBase::CacheControl cc;
+
+    if (!fileClassSettings) { return cc; }
+
+    const auto &fc(*fileClassSettings);
+    cc.maxAge = fc.getMaxAge(fileClass);
+    if (*cc.maxAge > 0) {
+        cc.staleWhileRevalidate = fc.getStaleWhileRevalidate(fileClass);
+    }
+
+    return cc;
 }
 
 Sink::FileInfo update(const Sink::FileInfo &inStat
                       , const FileClassSettings *fileClassSettings)
 {
-    if (inStat.maxAge) { return inStat; }
+    if (inStat.cacheControl.maxAge) { return inStat; }
     auto stat(inStat);
+    auto &cc(stat.cacheControl);
 
     if (!fileClassSettings) {
         // no file class attached, no caching
-        stat.maxAge = -1;
+        cc.maxAge = -1;
         return stat;
     }
 
     // set max age based on fileClass settings
-    stat.maxAge = fileClassSettings->getMaxAge(stat.fileClass);
+    const auto &fc(*fileClassSettings);
+    cc.maxAge = fc.getMaxAge(stat.fileClass);
+    if (*cc.maxAge > 0) {
+        // we are caching, what about stale settings?
+        cc.staleWhileRevalidate = fc.getStaleWhileRevalidate(stat.fileClass);
+    }
 
     // done
     return stat;
@@ -74,7 +89,7 @@ public:
                       , const FileClassSettings *fileClassSettings)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
-                             , maxAge(fileClass, fileClassSettings)))
+                             , cacheControl(fileClass, fileClassSettings)))
     {
         // do not fail on eof
         stream->get().exceptions(std::ios::badbit);
@@ -114,7 +129,7 @@ public:
                          , bool gzipped)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
-                             , maxAge(fileClass, fileClassSettings)))
+                             , cacheControl(fileClass, fileClassSettings)))
         , offset_(offset), end_(offset + size)
     {
         // sanity check
@@ -172,7 +187,7 @@ public:
     {
         fi_.lastModified = is_->timestamp();
         fi_.contentType = contentType;
-        fi_.maxAge = maxAge(fileClass, fileClassSettings);
+        fi_.cacheControl = cacheControl(fileClass, fileClassSettings);
 
         if (!trasferEncoding.empty()) {
             headers_.emplace_back("Content-Encoding", trasferEncoding);
@@ -281,9 +296,9 @@ Sink::FileInfo& Sink::FileInfo::setFileClass(FileClass fc)
     return *this;
 }
 
-Sink::FileInfo& Sink::FileInfo::setMaxAge(const boost::optional<long> &ma)
+Sink::FileInfo& Sink::FileInfo::setStaleWhileRevalidate(long stale)
 {
-    maxAge = ma;
+    cacheControl.staleWhileRevalidate = stale;
     return *this;
 }
 
@@ -312,5 +327,7 @@ void Sink::redirect(const std::string &url, utility::HttpCode code
                     , FileClass fileClass)
 {
     sink_->redirect
-        (url, code, update(Sink::FileInfo().setFileClass(fileClass)).maxAge);
+        (url, code
+         , update(Sink::FileInfo().setFileClass(fileClass)).cacheControl);
 }
+

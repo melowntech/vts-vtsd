@@ -291,7 +291,8 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
         } catch (const std::system_error &e) {
             LOG(err1) << e.what();
             if (e.code().category() == std::system_category()) {
-                if (e.code().value() == ENOENT) {
+                switch (e.code().value()) {
+                case ENOENT: case ENOTDIR:
                     return sink.error
                         (utility::makeError<NotFound>("No such file"));
                 }

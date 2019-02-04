@@ -72,13 +72,15 @@ public:
     struct FileInfo : http::SinkBase::FileInfo {
         FileInfo(const std::string &contentType = "application/octet-stream"
                  , std::time_t lastModified = -1
-                 , const boost::optional<long> &maxAge = boost::none)
-            : http::SinkBase::FileInfo(contentType, lastModified, maxAge)
+                 , const http::SinkBase::CacheControl &cacheControl
+                 = http::SinkBase::CacheControl())
+            : http::SinkBase::FileInfo(contentType, lastModified, cacheControl)
         {}
 
         FileInfo& setFileClass(FileClass fc);
 
         FileInfo& setMaxAge(const boost::optional<long> &maxAge);
+        FileInfo& setStaleWhileRevalidate(long stale);
 
         FileClass fileClass;
         http::Header::list headers;

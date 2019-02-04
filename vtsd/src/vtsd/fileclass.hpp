@@ -53,6 +53,7 @@ class FileClassSettings {
 public:
     static constexpr std::size_t storageSize =
         static_cast<int>(FileClass::unknown) + 1;
+    typedef std::array<std::time_t, storageSize> Times;
 
     /** All file classes are disables by default. Setting value allows them
      *  automatically.
@@ -61,6 +62,7 @@ public:
         // reset to defaults
         allowed_.fill(false);
         maxAges_.fill(0);
+        staleWhileRevalidate_.fill(0);
 
         // ephemeral files are never cached
         setMaxAge(FileClass::ephemeral, -1);
@@ -75,6 +77,9 @@ public:
     void setMaxAge(FileClass fc, std::time_t value);
     std::time_t getMaxAge(FileClass fc) const;
 
+    void setStaleWhileRevalidate(FileClass fc, std::time_t value);
+    std::time_t getStaleWhileRevalidate(FileClass fc) const;
+
     void allow(FileClass fc, bool value);
     bool allowed(FileClass fc) const;
 
@@ -82,7 +87,8 @@ public:
 
 private:
     std::array<bool, storageSize> allowed_;
-    std::array<std::time_t, storageSize> maxAges_;
+    Times maxAges_;
+    Times staleWhileRevalidate_;
 };
 
 // inlines
@@ -96,6 +102,18 @@ inline void FileClassSettings::setMaxAge(FileClass fc, std::time_t value)
 inline std::time_t FileClassSettings::getMaxAge(FileClass fc) const
 {
     return maxAges_[static_cast<int>(fc)];
+}
+
+inline void
+FileClassSettings::setStaleWhileRevalidate(FileClass fc, std::time_t value)
+{
+    staleWhileRevalidate_[static_cast<int>(fc)] = value;
+}
+
+inline std::time_t FileClassSettings::getStaleWhileRevalidate(FileClass fc)
+    const
+{
+    return staleWhileRevalidate_[static_cast<int>(fc)];
 }
 
 inline void FileClassSettings::allow(FileClass fc, bool value)

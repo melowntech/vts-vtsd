@@ -72,9 +72,15 @@ struct LocationConfig {
      */
     std::set<std::string> allowedProxies;
 
+    /** Config files (e.g. mapConfig.json, freelayer.json, ... for VTS) file
+     *  class. Defaults to FileClass::ephemeral. Use wisely!
+     */
+    FileClass configClass;
+
     LocationConfig()
         : match(Match::prefix), enableDataset(true)
         , enableBrowser(false), enableListing(false)
+        , configClass(FileClass::ephemeral)
     {}
 
     LocationConfig(const LocationConfig &config, const std::string &location)

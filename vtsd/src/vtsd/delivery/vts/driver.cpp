@@ -303,22 +303,23 @@ void VtsTileSet::handle(Sink sink, const Location &location
 
     switch (info.type) {
     case FileInfo::Type::definition:
-        return definition().def.send(sink);
+        return definition().def.send(sink, config.configClass);
 
     case FileInfo::Type::dirs:
-        return mapConfig().dirs.send(sink);
+        return mapConfig().dirs.send(sink, config.configClass);
 
     case FileInfo::Type::file:
         if (info.file == vs::File::config) {
             switch (info.flavor) {
             case vts::FileFlavor::regular:
                 // serve updated map config
-                return mapConfig().send(sink);
+                return mapConfig().send(sink, config.configClass);
 
             case vts::FileFlavor::debug:
-                return definition().debug.send(sink);
+                return definition().debug.send(sink, config.configClass);
 
             case vts::FileFlavor::raw:
+                // tileset.conf is always ephemeral
                 return sendRawFile(FileClass::ephemeral);
 
             default:
@@ -326,6 +327,7 @@ void VtsTileSet::handle(Sink sink, const Location &location
                 break;
             }
         } else if (info.file == vs::File::registry) {
+            // tileset.registry is always ephemeral
             return sendRawFile(FileClass::ephemeral);
         }
 
@@ -359,7 +361,7 @@ void VtsTileSet::handle(Sink sink, const Location &location
         std::unique_lock<std::mutex> guard(mutex_);
         return sink.content
             (delivery_->input(vts::VirtualSurface::TilesetMappingPath)
-             , FileClass::config);
+             , FileClass::data);
     }
 
     case FileInfo::Type::unknown:
@@ -445,11 +447,13 @@ void VtsStorage::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        return mapConfig().sendMapConfig(sink, location.proxy);
+        return mapConfig().sendMapConfig
+            (sink, location.proxy, config.configClass);
     }
 
     if (location.path == constants::Dirs) {
-        return mapConfig().sendDirs(sink, location.proxy);
+        return mapConfig().sendDirs
+            (sink, location.proxy, config.configClass);
     }
 
     // unknonw file, let's test other members
@@ -516,11 +520,12 @@ void VtsStorageView::handle(Sink sink, const Location &location
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
-        return mapConfig_->sendMapConfig(sink, location.proxy);
+        return mapConfig_->sendMapConfig(sink, location.proxy
+                                         , config.configClass);
     }
 
     if (location.path == constants::Dirs) {
-        return mapConfig_->sendDirs(sink, location.proxy);
+        return mapConfig_->sendDirs(sink, location.proxy, config.configClass);
     }
 
     // unknonw file, let's test other members
