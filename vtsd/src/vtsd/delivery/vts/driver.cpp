@@ -24,8 +24,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <mutex>
-
 #include <boost/optional.hpp>
 #include <boost/utility/in_place_factory.hpp>
 
@@ -223,7 +221,6 @@ private:
     vts::Delivery::pointer delivery_;
     mc::LazyConfigHolder<mc::MapConfig> mapConfig_;
     mc::LazyConfigHolder<mc::Definition> definition_;
-    std::mutex mutex_;
 };
 
 void tileFileStream(Sink &sink, const Location &location
@@ -297,7 +294,6 @@ void VtsTileSet::handle(Sink sink, const Location &location
 
     const auto sendRawFile([&](FileClass fc) -> void
     {
-        std::unique_lock<std::mutex> guard(mutex_);
         return sink.content(delivery_->input(info.file), fc);
     });
 
@@ -335,13 +331,7 @@ void VtsTileSet::handle(Sink sink, const Location &location
         return sendRawFile(FileClass::data);
 
     case FileInfo::Type::tileFile: {
-        // get input stream (locked)
-        auto is([&]() -> vs::IStream::pointer
-        {
-            std::unique_lock<std::mutex> guard(mutex_);
-            return delivery_->input
-                (info.tileId, info.tileFile, info.flavor);
-        }());
+        auto is(delivery_->input(info.tileId, info.tileFile, info.flavor));
 
         // raw data?
         if (info.flavor == vts::FileFlavor::raw) {
@@ -358,7 +348,6 @@ void VtsTileSet::handle(Sink sink, const Location &location
 
     case FileInfo::Type::tilesetMapping: {
         // get input stream (locked)
-        std::unique_lock<std::mutex> guard(mutex_);
         return sink.content
             (delivery_->input(vts::VirtualSurface::TilesetMappingPath)
              , FileClass::data);

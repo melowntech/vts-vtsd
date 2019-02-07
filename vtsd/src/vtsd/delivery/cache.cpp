@@ -236,8 +236,13 @@ void DeliveryCache::Detail::start(std::size_t count)
 void DeliveryCache::Detail::stop()
 {
     LOG(info2) << "Stopping delivery cache workers.";
+    ios_.post([&]()
+    {
+        bs::error_code ec;
+        maintenanceTimer_.cancel(ec);
+    });
+
     work_ = boost::none;
-    maintenanceTimer_.cancel();
     ios_.stop();
 
     while (!workers_.empty()) {
