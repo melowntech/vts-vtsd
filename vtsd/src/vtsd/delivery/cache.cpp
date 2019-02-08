@@ -153,6 +153,7 @@ public:
            , const vts::OpenOptions &openOptions
            , const OpenDriver &openDriver)
         : cache_(cache), openOptions_(openOptions), openDriver_(openDriver)
+        , maintenanceTimerStrand_(ios_)
         , maintenanceTimer_(ios_)
     {
         cleanupLimit_.openFiles = utility::maxOpenFiles() / 2;
@@ -205,6 +206,7 @@ private:
      */
     boost::optional<asio::io_service::work> work_;
     std::vector<std::thread> workers_;
+    asio::strand maintenanceTimerStrand_;
     asio::steady_timer maintenanceTimer_;
 
     // cache
@@ -230,17 +232,29 @@ void DeliveryCache::Detail::start(std::size_t count)
 
     guard.release();
 
-    startMaintenance();
+    // start maintenance timer
+    maintenanceTimerStrand_.post([this]()
+    {
+        startMaintenance();
+    });
 }
 
 void DeliveryCache::Detail::stop()
 {
     LOG(info2) << "Stopping delivery cache workers.";
-    ios_.post([&]()
     {
-        bs::error_code ec;
-        maintenanceTimer_.cancel(ec);
-    });
+        // stop maintenance timer
+        std::promise<void> timerPromise;
+        auto timerDone(timerPromise.get_future());
+        maintenanceTimerStrand_.post([&]()
+        {
+            bs::error_code ec;
+            maintenanceTimer_.cancel(ec);
+            timerPromise.set_value();
+        });
+        // wait for timer done
+        timerDone.wait();
+    }
 
     work_ = boost::none;
     ios_.stop();
@@ -280,22 +294,22 @@ void DeliveryCache::Detail::startMaintenance()
     maintenanceTimer_.expires_from_now
         (std::chrono::seconds(CHECK_INTERVAL));
 
-    maintenanceTimer_.async_wait([this](const bs::error_code &ec)
+    maintenanceTimer_.async_wait(maintenanceTimerStrand_.wrap
+                                 ([this](const bs::error_code &ec)
     {
-        if (!ec) {
-            try {
-                // run check
-                check();
-            } catch (const std::exception &e) {
-                LOG(err3)
-                    << "Uncaught exception (" << typeid(e).name()
-                    << ") in maintenance: <" << e.what() << ">. Going on.";
-            }
+        if (ec) { return; }
+        try {
+            // run check
+            check();
+        } catch (const std::exception &e) {
+            LOG(err3)
+                << "Uncaught exception (" << typeid(e).name()
+                << ") in maintenance: <" << e.what() << ">. Going on.";
+        }
 
-            // start maintenance again
-            startMaintenance();
-        };
-    });
+        // start maintenance again
+        startMaintenance();
+    }));
 }
 
 void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
