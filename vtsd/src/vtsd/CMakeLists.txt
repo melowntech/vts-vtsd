@@ -20,7 +20,7 @@ set(vtsd-internals_SOURCES
   # common daemon implementation
   daemon.hpp daemon.cpp
 
-  delivery/driver.hpp
+  delivery/driver.hpp delivery/driver.cpp
 
   # all driver implementations follow:
 

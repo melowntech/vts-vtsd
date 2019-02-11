@@ -204,116 +204,156 @@ getProxy(const LocationConfig &location, const http::Request &request)
     return boost::none;
 }
 
+namespace {
+
+class ErrorHandler {
+public:
+    ErrorHandler(DeliveryCache &deliveryCache
+                 , const fs::path &filePath
+                 , Sink sink, const LocationConfig &location)
+        : deliveryCache_(deliveryCache), filePath_(filePath)
+        , sink_(sink), location_(location)
+    {}
+
+    void operator()() { operator()(std::current_exception()); }
+    void operator()(const std::error_code &ec) {
+        operator()(utility::makeErrorCodeException(ec));
+    }
+    void operator()(const std::exception_ptr &exc);
+
+private:
+    DeliveryCache &deliveryCache_;
+    const fs::path filePath_;
+    Sink sink_;
+    const LocationConfig location_;
+};
+
+void ErrorHandler::operator()(const std::exception_ptr &exc)
+{
+    const auto parent(filePath_.parent_path());
+    const auto file(filePath_.filename());
+
+    try {
+        // rethrow current exception
+        std::rethrow_exception(exc);
+    } catch (vs::NoSuchTileSet) {
+        boost::system::error_code ec;
+        auto status(fs::status(filePath_, ec));
+        if (ec) {
+            // some error
+            if (!fs::exists(status)) {
+                LOG(err1) << "Path " << filePath_ << " doesn't exist.";
+                sink_.error(utility::makeError<NotFound>
+                            ("Path doesn't exist."));
+                return;
+            }
+
+            sink_.error(utility::makeError<InternalError>
+                        ("Cannot stat parent path."));
+            return;
+        }
+
+        // file exists
+        if (fs::is_directory(status)) {
+            if (file != ".") {
+                // directory redirect
+                sink_.redirect
+                    (file.string() + "/", utility::HttpCode::Found);
+                return;
+            }
+
+            if (location_.enableListing) {
+                // directory and we have enabled browser -> directory
+                // listing
+                sink_.listing(parent);
+                return;
+            }
+
+            // listing not enabled -> forbidden
+            LOG(err1) << "Path " << filePath_ << " is unlistable.";
+            return sink_.error
+                (utility::makeError<Forbidden>("Unlistable"));
+        }
+
+        // not a directory, check if this is a file-based dataset
+        deliveryCache_.get
+            (filePath_.string()
+             , [=](const DeliveryCache::Expected &value)
+             mutable -> void
+        {
+            if (value) {
+                LOG(info1) << "Non-directory dataset.";
+                // non-directory dataset -> treat as a directory -> redirect
+                return sink_.redirect(file.string() + "/"
+                                      , utility::HttpCode::Found);
+            } else {
+                LOG(err1) << "No dataset found at " << filePath_ << ".";
+                return sink_.error
+                    (utility::makeError<NotFound>("No such dataset"));
+            }
+        });
+    } catch (const ListContent &lc) {
+        if (location_.enableListing) {
+            // directory and we have enabled browser -> directory listing
+            sink_.listing(parent, lc.listingBootstrap);
+            return;
+        }
+        LOG(err1) << "Path " << filePath_ << " is unlistable.";
+        sink_.error
+            (utility::makeError<Forbidden>("Unbrowsable"));
+
+    } catch (const std::system_error &e) {
+        LOG(err1) << e.what();
+        if (e.code().category() == std::system_category()) {
+            switch (e.code().value()) {
+            case ENOENT: case ENOTDIR:
+                return sink_.error
+                    (utility::makeError<NotFound>("No such file"));
+            }
+        }
+
+    } catch (const vs::NoSuchFile &e) {
+        LOG(err1) << e.what();
+        sink_.error
+            (utility::makeError<NotFound>("No such file"));
+
+    } catch (std::domain_error &e) {
+        LOG(err1) << e.what();
+        sink_.error
+            (utility::makeError<NotFound>("Domain error"));
+
+    } catch (const std::invalid_argument&) {
+        // pass error
+        sink_.error();
+    } catch (const utility::HttpError&) {
+        // pass error
+        sink_.error();
+    }
+}
+
+} // namespace
+
 void Vtsd::handleDataset(DeliveryCache &deliveryCache
                          , const fs::path &filePath
                          , const http::Request &request
                          , Sink sink, const LocationConfig &location)
 {
-    const auto parent(filePath.parent_path());
-    const auto file(filePath.filename());
-
     deliveryCache.get
-        (parent.string()
+        (filePath.parent_path().string()
          , [=, &deliveryCache](const DeliveryCache::Expected &value)
          mutable -> void
     {
-        try {
-            value.get()->handle
-                (sink, Location(file.string(), request.query
-                                , getProxy(location, request))
-                 , location);
-        } catch (vs::NoSuchTileSet) {
-            boost::system::error_code ec;
-            auto status(fs::status(filePath, ec));
-            if (ec) {
-                // some error
-                if (!fs::exists(status)) {
-                    LOG(err1) << "Path " << filePath << " doesn't exist.";
-                    sink.error(utility::makeError<NotFound>
-                               ("Path doesn't exist."));
-                    return;
-                }
+        ErrorHandler eh(deliveryCache, filePath, sink, location);
 
-                sink.error(utility::makeError<InternalError>
-                           ("Cannot stat parent path."));
-                return;
-            }
-
-            // file exists
-            if (fs::is_directory(status)) {
-                if (file != ".") {
-                    // directory redirect
-                    sink.redirect
-                        (file.string() + "/", utility::HttpCode::Found);
-                    return;
-                }
-
-                if (location.enableListing) {
-                    // directory and we have enabled browser -> directory
-                    // listing
-                    sink.listing(parent);
-                    return;
-                }
-
-                // listing not enabled -> forbidden
-                LOG(err1) << "Path " << filePath << " is unlistable.";
-                return sink.error
-                    (utility::makeError<Forbidden>("Unlistable"));
-            }
-
-            // not a directory, check if this is a file-based dataset
-            deliveryCache.get
-                (filePath.string()
-                 , [=](const DeliveryCache::Expected &value)
-                 mutable -> void
-            {
-                if (value) {
-                    LOG(info1) << "Non-directory dataset.";
-                    // non-directory dataset -> treat as a directory -> redirect
-                    return sink.redirect(file.string() + "/"
-                                         , utility::HttpCode::Found);
-                } else {
-                    LOG(err1) << "No dataset found at " << filePath << ".";
-                    return sink.error
-                        (utility::makeError<NotFound>("No such dataset"));
-                }
-            });
-        } catch (const ListContent &lc) {
-            if (location.enableListing) {
-                // directory and we have enabled browser -> directory listing
-                sink.listing(parent, lc.listingBootstrap);
-                return;
-            }
-            LOG(err1) << "Path " << filePath << " is unlistable.";
-            sink.error
-                (utility::makeError<Forbidden>("Unbrowsable"));
-
-        } catch (const std::system_error &e) {
-            LOG(err1) << e.what();
-            if (e.code().category() == std::system_category()) {
-                switch (e.code().value()) {
-                case ENOENT: case ENOTDIR:
-                    return sink.error
-                        (utility::makeError<NotFound>("No such file"));
-                }
-            }
-
-        } catch (const vs::NoSuchFile &e) {
-            LOG(err1) << e.what();
-            sink.error
-                (utility::makeError<NotFound>("No such file"));
-
-        } catch (std::domain_error &e) {
-            LOG(err1) << e.what();
-            sink.error
-                (utility::makeError<NotFound>("Domain error"));
-
-        } catch (const std::invalid_argument&) {
-            // pass error
-            sink.error();
-        } catch (const utility::HttpError&) {
-            // pass error
-            sink.error();
+        // handle error or return pointer to value
+        if (auto driver = value.get(eh)) {
+            driver->handle
+                (sink
+                 , Location(filePath.filename().string(), request.query
+                            , getProxy(location, request))
+                 , location
+                 , [eh]() mutable { eh(); }
+                 );
         }
     });
 }

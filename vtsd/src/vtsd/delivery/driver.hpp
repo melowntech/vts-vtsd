@@ -88,7 +88,7 @@ struct Location {
     std::string path;
     std::string query;
     boost::optional<std::string> proxy;
-
+    
     Location(const std::string &path, const std::string &query
              , const boost::optional<std::string> &proxy = boost::none)
         : path(path), query(query), proxy(proxy)
@@ -99,14 +99,23 @@ class DriverWrapper : boost::noncopyable {
 public:
     typedef std::shared_ptr<DriverWrapper> pointer;
 
+    typedef std::function<void()> ErrorHandler;
+
     DriverWrapper() {}
     virtual ~DriverWrapper() {}
 
     virtual vs::Resources resources() const = 0;
     virtual bool externallyChanged() const = 0;
 
+    /** Main request handler. Error handler is provided to allow asynchronous
+     *  operation. Default implementation calls (legacy) handle version without
+     *  error handler.
+     *
+     *  Override when your driver is asynchronous.
+     */
     virtual void handle(Sink sink, const Location &location
-                        , const LocationConfig &config) = 0;
+                        , const LocationConfig &config
+                        , const ErrorHandler &errorHandler);
 
     /** Open driver for hot content is never cached.
      */
@@ -117,6 +126,12 @@ public:
                                    , const boost::optional<long> &maxAge
                                    = boost::none);
     static Sink::FileInfo fileinfo(const vs::SupportFile &file, FileClass fc);
+
+    /** Override only if the driver is not asynchronous. Do not change handle
+     *  version with error handler.
+     */
+    virtual void handle(Sink sink, const Location &location
+                        , const LocationConfig &config);
 };
 
 // inlines
