@@ -34,8 +34,8 @@
 
 #include "http/error.hpp"
 
-#include "./sink.hpp"
-#include "./error.hpp"
+#include "sink.hpp"
+#include "error.hpp"
 
 namespace fs = boost::filesystem;
 

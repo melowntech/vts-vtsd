@@ -43,9 +43,9 @@
 #include "vts-libs/storage/streams.hpp"
 #include "vts-libs/storage/support.hpp"
 
-#include "./fileclass.hpp"
-#include "./error.hpp"
-#include "./config.hpp"
+#include "fileclass.hpp"
+#include "error.hpp"
+#include "config.hpp"
 
 namespace vs = vtslibs::storage;
 

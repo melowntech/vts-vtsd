@@ -34,7 +34,7 @@
 #include "vts-libs/vts0/driver/tilardriver.hpp"
 #include "vts-libs/vts0/config.hpp"
 
-#include "./driver.hpp"
+#include "driver.hpp"
 
 namespace fs = boost::filesystem;
 namespace vts0 = vtslibs::vts0;

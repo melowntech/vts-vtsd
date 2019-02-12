@@ -26,7 +26,7 @@
 
 #include "vts-libs/vts/service.hpp"
 
-#include "./mapconfig.hpp"
+#include "mapconfig.hpp"
 
 namespace fs = boost::filesystem;
 

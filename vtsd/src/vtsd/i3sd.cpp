@@ -49,12 +49,12 @@
 
 #include "roarchive/error.hpp"
 
-#include "./error.hpp"
-#include "./config.hpp"
-#include "./delivery/cache.hpp"
-#include "./delivery/slpk/driver.hpp"
+#include "error.hpp"
+#include "config.hpp"
+#include "delivery/cache.hpp"
+#include "delivery/slpk/driver.hpp"
 
-#include "./daemon.hpp"
+#include "daemon.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;

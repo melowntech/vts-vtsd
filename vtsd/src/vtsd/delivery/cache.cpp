@@ -41,7 +41,7 @@
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/storage/io.hpp"
 
-#include "./cache.hpp"
+#include "cache.hpp"
 
 namespace asio = boost::asio;
 namespace bs = boost::system;

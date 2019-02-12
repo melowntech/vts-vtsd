@@ -37,7 +37,7 @@
 #include "vts-libs/storage/support.hpp"
 #include "vts-libs/vts/options.hpp"
 
-#include "./fileclass.hpp"
+#include "fileclass.hpp"
 
 namespace vs = vtslibs::storage;
 

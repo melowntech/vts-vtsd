@@ -34,7 +34,7 @@
 
 #include "slpk/restapi.hpp"
 
-#include "./driver.hpp"
+#include "driver.hpp"
 
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;

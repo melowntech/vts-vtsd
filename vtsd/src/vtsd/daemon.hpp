@@ -37,9 +37,9 @@
 
 #include "http/http.hpp"
 
-#include "./config.hpp"
-#include "./sink.hpp"
-#include "./delivery/cache.hpp"
+#include "config.hpp"
+#include "sink.hpp"
+#include "delivery/cache.hpp"
 
 namespace po = boost::program_options;
 

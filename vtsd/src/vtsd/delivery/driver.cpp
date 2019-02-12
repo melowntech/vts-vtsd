@@ -24,15 +24,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "./driver.hpp"
+#include "driver.hpp"
 
 /** Default implementation: forward to handle(sink, location, config);
  */
 inline void DriverWrapper::handle(Sink sink, const Location &location
                                   , const LocationConfig &config
-                                  , const ErrorHandler &errorHandler)
+                                  , const ErrorHandler::pointer &errorHandler)
 {
-    try { handle(sink, location, config); } catch (...) { errorHandler(); }
+    try { handle(sink, location, config); } catch (...) { (*errorHandler)(); }
 }
 
 /** Default implementation: fail miserably.

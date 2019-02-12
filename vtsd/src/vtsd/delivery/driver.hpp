@@ -34,6 +34,7 @@
 #include "vts-libs/storage/support.hpp"
 
 #include "utility/raise.hpp"
+#include "utility/errorcode.hpp"
 
 #include "../sink.hpp"
 #include "../config.hpp"
@@ -88,18 +89,32 @@ struct Location {
     std::string path;
     std::string query;
     boost::optional<std::string> proxy;
-    
+
     Location(const std::string &path, const std::string &query
              , const boost::optional<std::string> &proxy = boost::none)
         : path(path), query(query), proxy(proxy)
     {}
 };
 
+class ErrorHandler {
+public:
+    typedef std::shared_ptr<ErrorHandler> pointer;
+
+    virtual ~ErrorHandler() {}
+
+    void operator()() { handle(std::current_exception()); }
+    void operator()(const std::error_code &ec) {
+        handle(utility::makeErrorCodeException(ec));
+    }
+    void operator()(const std::exception_ptr &exc) { handle(exc); }
+
+private:
+    virtual void handle(const std::exception_ptr &exc) = 0;
+};
+
 class DriverWrapper : boost::noncopyable {
 public:
     typedef std::shared_ptr<DriverWrapper> pointer;
-
-    typedef std::function<void()> ErrorHandler;
 
     DriverWrapper() {}
     virtual ~DriverWrapper() {}
@@ -115,7 +130,7 @@ public:
      */
     virtual void handle(Sink sink, const Location &location
                         , const LocationConfig &config
-                        , const ErrorHandler &errorHandler);
+                        , const ErrorHandler::pointer &errorHandler);
 
     /** Open driver for hot content is never cached.
      */

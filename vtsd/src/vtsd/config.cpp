@@ -26,7 +26,7 @@
 
 #include "utility/format.hpp"
 
-#include "./config.hpp"
+#include "config.hpp"
 
 namespace po = boost::program_options;
 

@@ -44,7 +44,7 @@
 
 #include "vts-libs/vts/options.hpp"
 
-#include "./driver.hpp"
+#include "driver.hpp"
 
 struct OpenOptions {
     vtslibs::vts::OpenOptions openOptions;

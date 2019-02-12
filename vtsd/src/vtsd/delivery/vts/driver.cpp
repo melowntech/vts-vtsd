@@ -40,8 +40,8 @@
 #include "vts-libs/vts/virtualsurface.hpp"
 #include "vts-libs/vts/service.hpp"
 
-#include "./driver.hpp"
-#include "./mapconfig.hpp"
+#include "driver.hpp"
+#include "mapconfig.hpp"
 
 namespace fs = boost::filesystem;
 namespace vts = vtslibs::vts;
@@ -209,7 +209,8 @@ public:
     }
 
     virtual void handle(Sink sink, const Location &location
-                        , const LocationConfig &config);
+                        , const LocationConfig &config
+                        , const ErrorHandler::pointer &errorHandler);
 
     static std::shared_ptr<vts::Driver>
     asDriver(const DriverWrapper::pointer &driver);
@@ -217,6 +218,11 @@ public:
 private:
     const mc::MapConfig& mapConfig() { return mapConfig_(*delivery_); }
     const mc::Definition& definition() { return definition_(*delivery_); }
+
+    void handleTile(Sink &sink, const Location &location
+                    , const LocationConfig &config
+                    , const ErrorHandler::pointer &errorHandler
+                    , const VtsFileInfo &info);
 
     vts::Delivery::pointer delivery_;
     mc::LazyConfigHolder<mc::MapConfig> mapConfig_;
@@ -285,96 +291,122 @@ void tileFileStream(Sink &sink, const Location &location
     return sink.content(is, FileClass::data);
 }
 
+void VtsTileSet::handleTile(Sink &sink, const Location &location
+                            , const LocationConfig&
+                            , const ErrorHandler::pointer &errorHandler
+                            , const VtsFileInfo &info)
+{
+    // tiles: asynchronous
+    if (info.type != FileInfo::Type::tileFile) {
+        LOGTHROW(err1, InternalError)
+            << "Non-tile files cannot be served via asynchronous interface.";
+        return;
+    }
+
+    // run asynchronously
+    delivery_->input(info.tileId, info.tileFile, info.flavor
+                     , [=](const vts::EIStream &eis) mutable -> void
+    {
+        if (auto is = eis.get(*errorHandler)) {
+            try {
+                if (info.flavor == vts::FileFlavor::raw) {
+                    return sink.content(is, FileClass::data);
+                }
+
+                tileFileStream(sink, location, info, is);
+            } catch (...) {
+                (*errorHandler)();
+            }
+        }
+    });
+}
+
 void VtsTileSet::handle(Sink sink, const Location &location
-                        , const LocationConfig &config)
+                        , const LocationConfig &config
+                        , const ErrorHandler::pointer &errorHandler)
 {
     // we want internals
-    VtsFileInfo info(location.path, config
-                     , ExtraFlags::enableTilesetInternals);
+    const VtsFileInfo info
+        (location.path, config, ExtraFlags::enableTilesetInternals);
 
     const auto sendRawFile([&](FileClass fc) -> void
     {
         return sink.content(delivery_->input(info.file), fc);
     });
 
-    switch (info.type) {
-    case FileInfo::Type::definition:
-        return definition().def.send(sink, config.configClass);
+    try {
+        switch (info.type) {
+        case FileInfo::Type::definition:
+            return definition().def.send(sink, config.configClass);
 
-    case FileInfo::Type::dirs:
-        return mapConfig().dirs.send(sink, config.configClass);
+        case FileInfo::Type::dirs:
+            return mapConfig().dirs.send(sink, config.configClass);
 
-    case FileInfo::Type::file:
-        if (info.file == vs::File::config) {
-            switch (info.flavor) {
-            case vts::FileFlavor::regular:
-                // serve updated map config
-                return mapConfig().send(sink, config.configClass);
+        case FileInfo::Type::file:
+            if (info.file == vs::File::config) {
+                switch (info.flavor) {
+                case vts::FileFlavor::regular:
+                    // serve updated map config
+                    return mapConfig().send(sink, config.configClass);
 
-            case vts::FileFlavor::debug:
-                return definition().debug.send(sink, config.configClass);
+                case vts::FileFlavor::debug:
+                    return definition().debug.send(sink, config.configClass);
 
-            case vts::FileFlavor::raw:
-                // tileset.conf is always ephemeral
+                case vts::FileFlavor::raw:
+                    // tileset.conf is always ephemeral
+                    return sendRawFile(FileClass::ephemeral);
+
+                default:
+                    // pass
+                    break;
+                }
+            } else if (info.file == vs::File::registry) {
+                // tileset.registry is always ephemeral
                 return sendRawFile(FileClass::ephemeral);
-
-            default:
-                // pass
-                break;
             }
-        } else if (info.file == vs::File::registry) {
-            // tileset.registry is always ephemeral
-            return sendRawFile(FileClass::ephemeral);
+
+            // serve internal (raw) file
+            return sendRawFile(FileClass::data);
+
+        case FileInfo::Type::tileFile:
+            return handleTile(sink, location, config, errorHandler, info);
+
+        case FileInfo::Type::support:
+            sink.content(info.support->second);
+            return;
+
+        case FileInfo::Type::tilesetMapping: {
+            // get input stream (locked)
+            return sink.content
+                (delivery_->input(vts::VirtualSurface::TilesetMappingPath)
+                 , FileClass::data);
         }
 
-        // serve internal (raw) file
-        return sendRawFile(FileClass::data);
+        case FileInfo::Type::unknown:
+            // unknown file, let's test other members
+            if (info.registry) {
+                // it's registry file!
+                return sink.content(vs::fileIStream(info.registry->contentType
+                                                    , info.registry->path)
+                                    , FileClass::registry);
+            }
 
-    case FileInfo::Type::tileFile: {
-        auto is(delivery_->input(info.tileId, info.tileFile, info.flavor));
+            if (info.service) {
+                return sink.content(vts::service::generate
+                                    (info.service, info.path, location.query)
+                                    , FileClass::data);
+            }
+            break;
 
-        // raw data?
-        if (info.flavor == vts::FileFlavor::raw) {
-            return sink.content(is, FileClass::data);
+        default:
+            break;
         }
 
-        // browser frendly
-        return tileFileStream(sink, location, info, is);
+        // wtf?
+        sink.error(utility::makeError<NotFound>("Unknown file type."));
+    } catch (...) {
+        (*errorHandler)();
     }
-
-    case FileInfo::Type::support:
-        sink.content(info.support->second);
-        return;
-
-    case FileInfo::Type::tilesetMapping: {
-        // get input stream (locked)
-        return sink.content
-            (delivery_->input(vts::VirtualSurface::TilesetMappingPath)
-             , FileClass::data);
-    }
-
-    case FileInfo::Type::unknown:
-        // unknown file, let's test other members
-        if (info.registry) {
-            // it's registry file!
-            return sink.content(vs::fileIStream(info.registry->contentType
-                                                , info.registry->path)
-                                , FileClass::registry);
-        }
-
-        if (info.service) {
-            return sink.content(vts::service::generate
-                                (info.service, info.path, location.query)
-                                , FileClass::data);
-        }
-        break;
-
-    default:
-        break;
-    }
-
-    // wtf?
-    sink.error(utility::makeError<NotFound>("Unknown file."));
 }
 
 std::shared_ptr<vts::Driver>

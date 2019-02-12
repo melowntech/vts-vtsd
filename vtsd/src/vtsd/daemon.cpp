@@ -44,8 +44,8 @@
 #include "vts-libs/storage/fstreams.hpp"
 #include "vts-libs/storage/error.hpp"
 
-#include "./error.hpp"
-#include "./daemon.hpp"
+#include "error.hpp"
+#include "daemon.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -331,7 +331,7 @@ void Daemon::handlePrefix(const LocationConfig &location
     // cut from path
     auto path(request.path.substr(location.location.size()));
 
-    // TODO: check for "./" and "../"!
+    // TODO: check for "" and "../"!
     const fs::path filePath(location.alias.string() + path);
     handle(filePath, request, sink, location);
 }
@@ -348,7 +348,7 @@ void Daemon::handleRegex(const LocationConfig &location
         return handle(filePath, request, sink, location);
     }
 
-    // TODO: check for "./" and "../"!
+    // TODO: check for "" and "../"!
     const fs::path filePath(m.format(location.alias.string()
                                      , boost::format_no_copy));
 

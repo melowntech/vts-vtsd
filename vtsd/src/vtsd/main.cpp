@@ -50,13 +50,13 @@
 #include "vts-libs/vts/options.hpp"
 #include "vts-libs/vts/support.hpp"
 
-#include "./error.hpp"
-#include "./config.hpp"
-#include "./delivery/cache.hpp"
-#include "./delivery/vts/driver.hpp"
-#include "./delivery/vts0/driver.hpp"
+#include "error.hpp"
+#include "config.hpp"
+#include "delivery/cache.hpp"
+#include "delivery/vts/driver.hpp"
+#include "delivery/vts0/driver.hpp"
 
-#include "./daemon.hpp"
+#include "daemon.hpp"
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -206,29 +206,25 @@ getProxy(const LocationConfig &location, const http::Request &request)
 
 namespace {
 
-class ErrorHandler {
+class CacheErrorHandler : public ErrorHandler {
 public:
-    ErrorHandler(DeliveryCache &deliveryCache
-                 , const fs::path &filePath
-                 , Sink sink, const LocationConfig &location)
+    CacheErrorHandler(DeliveryCache &deliveryCache
+                      , const fs::path &filePath
+                      , Sink sink, const LocationConfig &location)
         : deliveryCache_(deliveryCache), filePath_(filePath)
         , sink_(sink), location_(location)
     {}
 
-    void operator()() { operator()(std::current_exception()); }
-    void operator()(const std::error_code &ec) {
-        operator()(utility::makeErrorCodeException(ec));
-    }
-    void operator()(const std::exception_ptr &exc);
-
 private:
+    virtual void handle(const std::exception_ptr &exc);
+
     DeliveryCache &deliveryCache_;
     const fs::path filePath_;
     Sink sink_;
     const LocationConfig location_;
 };
 
-void ErrorHandler::operator()(const std::exception_ptr &exc)
+void CacheErrorHandler::handle(const std::exception_ptr &exc)
 {
     const auto parent(filePath_.parent_path());
     const auto file(filePath_.filename());
@@ -343,16 +339,17 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
          , [=, &deliveryCache](const DeliveryCache::Expected &value)
          mutable -> void
     {
-        ErrorHandler eh(deliveryCache, filePath, sink, location);
+        auto errorHandler(std::make_shared<CacheErrorHandler>
+                          (deliveryCache, filePath, sink, location));
 
         // handle error or return pointer to value
-        if (auto driver = value.get(eh)) {
+        if (auto driver = value.get(*errorHandler)) {
             driver->handle
                 (sink
                  , Location(filePath.filename().string(), request.query
                             , getProxy(location, request))
                  , location
-                 , [eh]() mutable { eh(); }
+                 , errorHandler
                  );
         }
     });
