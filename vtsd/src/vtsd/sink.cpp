@@ -296,6 +296,12 @@ Sink::FileInfo& Sink::FileInfo::setFileClass(FileClass fc)
     return *this;
 }
 
+Sink::FileInfo& Sink::FileInfo::setMaxAge(const boost::optional<long> &ma)
+{
+    cacheControl.maxAge = ma;
+    return *this;
+}
+
 Sink::FileInfo& Sink::FileInfo::setStaleWhileRevalidate(long stale)
 {
     cacheControl.staleWhileRevalidate = stale;
