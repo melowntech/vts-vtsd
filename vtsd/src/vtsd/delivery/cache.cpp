@@ -38,6 +38,8 @@
 #include "utility/rlimit.hpp"
 #include "utility/enum-io.hpp"
 
+#include "http/resourcefetcher.hpp"
+
 #include "vts-libs/storage/error.hpp"
 #include "vts-libs/storage/io.hpp"
 
@@ -176,6 +178,8 @@ public:
 
     void stat(std::ostream &os) const;
 
+    void useContentFetcher(http::ContentFetcher &fetcher);
+
 private:
     void open(Record &record, bool forcedReopen);
     void finishOpen(Record &record, const Expected &value);
@@ -195,7 +199,7 @@ private:
     void check();
 
     DeliveryCache &cache_;
-    const vts::OpenOptions openOptions_;
+    vts::OpenOptions openOptions_;
     const OpenDriver openDriver_;
 
     vs::Resources cleanupLimit_;
@@ -627,4 +631,15 @@ void DeliveryCache::Detail::stat(std::ostream &os) const
 void DeliveryCache::stat(std::ostream &os) const
 {
     return workers_->stat(os);
+}
+
+void DeliveryCache::Detail::useContentFetcher(http::ContentFetcher &fetcher)
+{
+    openOptions_.resourceFetcher
+        (std::make_shared<http::ResourceFetcher>(fetcher, &ios_));
+}
+
+void DeliveryCache::useContentFetcher(http::ContentFetcher &fetcher)
+{
+    workers_->useContentFetcher(fetcher);
 }

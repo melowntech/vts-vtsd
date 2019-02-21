@@ -40,6 +40,7 @@
 #include "utility/buildsys.hpp"
 
 #include "http/http.hpp"
+#include "http/resourcefetcher.hpp"
 
 #include "vts-libs/storage/fstreams.hpp"
 #include "vts-libs/storage/error.hpp"
@@ -53,14 +54,32 @@ namespace ba = boost::algorithm;
 
 namespace vs = vtslibs::storage;
 
+void validate(boost::any &v
+              , const std::vector<std::string> &values
+              , ThreadCount*, int)
+{
+    po::validators::check_first_occurrence(v);
+    auto raw(boost::lexical_cast<int>
+             (po::validators::get_single_string(values)));
+    if (raw <= 0) {
+        throw po::validation_error(po::validation_error::invalid_option_value);
+    }
+
+    v = ThreadCount(raw);
+}
+
 Daemon::Daemon(const std::string &name, const std::string &version
                , const utility::TcpEndpoint &httpListen
-               , const LocationConfig &defaultConfig)
+               , const LocationConfig &defaultConfig
+               , int flags)
     : service::Service(name, version
                        , service::ENABLE_CONFIG_UNRECOGNIZED_OPTIONS
                        | service::ENABLE_UNRECOGNIZED_OPTIONS)
     , httpListen_(httpListen)
     , httpThreadCount_(boost::thread::hardware_concurrency())
+    , httpClientThreadCount_((flags & Flags::needsHttpClient)
+                             ? boost::thread::hardware_concurrency()
+                             : 0)
     , coreThreadCount_(boost::thread::hardware_concurrency())
     , defaultConfig_(defaultConfig)
     , proxiesConfigured_(false)
@@ -85,6 +104,15 @@ void Daemon::configurationImpl(po::options_description &cmdline
          ->default_value(coreThreadCount_)->required()
          , "Number of server core threads.")
         ;
+
+    if (httpClientThreadCount_) {
+        // only when told to be used
+        config.add_options()
+            ("http.clientThreadCount", po::value(&httpClientThreadCount_)
+             ->default_value(httpClientThreadCount_)->required()
+             , "Number of client HTTP threads.")
+            ;
+    }
 
     openOptions_.configuration(config, "open.");
 
@@ -188,6 +216,13 @@ void Daemon::configureImpl(const po::variables_map &vars)
         << "Config:"
         << "\n\thttp.listen = " << httpListen_
         << "\n\thttp.threadCount = " << httpThreadCount_
+        << utility::LManip([&](std::ostream &os) {
+                if (httpClientThreadCount_) {
+                    os << "\n\thttp.clientThreadCount = "
+                       << httpClientThreadCount_;
+                }
+            })
+        << "\n\tcore.threadCount = " << coreThreadCount_
         << '\n' << utility::dump(openOptions_, "\topen.")
         << utility::LManip([&](std::ostream &os) {
                 for (const auto &location : prefixLocations_) {
@@ -237,6 +272,14 @@ service::Service::Cleanup Daemon::start()
                          , utility::buildsys::TargetVersion));
     http_->listen(httpListen_, std::ref(*this));
     http_->startServer(httpThreadCount_);
+
+    if (httpClientThreadCount_) {
+        // TODO: enable client configuration
+        http_->startClient(httpClientThreadCount_);
+
+        // tell drivers to use out resource fetcher
+        deliveryCache_->useContentFetcher(http_->fetcher());
+    }
 
     return guard;
 }

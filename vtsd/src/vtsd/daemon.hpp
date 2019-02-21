@@ -43,14 +43,28 @@
 
 namespace po = boost::program_options;
 
+struct ThreadCount {
+    unsigned int value;
+
+    ThreadCount(unsigned int value = 0) : value(value) {}
+    operator unsigned int() const { return value; }
+    operator unsigned int&() { return value; }
+};
+
 class Daemon
     : public service::Service
     , public http::ContentGenerator
 {
 public:
+    struct Flags { enum {
+        needsHttpClient = 0x01
+        , none = 0x00
+    }; };
+
     Daemon(const std::string &name, const std::string &version
            , const utility::TcpEndpoint &httpListen
-           , const LocationConfig &defaultConfig);
+           , const LocationConfig &defaultConfig
+           , int flags = Flags::none);
 
 protected:
     void configurationImpl(po::options_description &cmdline
@@ -74,7 +88,6 @@ protected:
     virtual void generate_impl(const http::Request &request
                                , const http::ServerSink::pointer &sink);
 
-protected:
     bool proxiesConfigured() const { return proxiesConfigured_; }
 
 private:
@@ -130,8 +143,9 @@ private:
     friend struct Stopper;
 
     utility::TcpEndpoint httpListen_;
-    unsigned int httpThreadCount_;
-    unsigned int coreThreadCount_;
+    ThreadCount httpThreadCount_;
+    ThreadCount httpClientThreadCount_;
+    ThreadCount coreThreadCount_;
 
     vtslibs::vts::OpenOptions openOptions_;
     LocationConfig defaultConfig_;

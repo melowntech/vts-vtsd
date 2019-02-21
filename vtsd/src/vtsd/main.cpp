@@ -88,7 +88,8 @@ class Vtsd : public Daemon
 {
 public:
     Vtsd()
-        : Daemon("vtsd", BUILD_TARGET_VERSION, 3060, defaultConfig())
+        : Daemon("vtsd", BUILD_TARGET_VERSION, 3060, defaultConfig()
+                 , Flags::needsHttpClient)
     {}
 
 private:

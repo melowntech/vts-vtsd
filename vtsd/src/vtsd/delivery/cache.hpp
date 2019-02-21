@@ -46,6 +46,9 @@
 
 #include "driver.hpp"
 
+// forwards
+namespace http { class ContentFetcher; }
+
 struct OpenOptions {
     vtslibs::vts::OpenOptions openOptions;
     bool forcedReopen;
@@ -97,6 +100,8 @@ public:
     /** Statistics.
      */
     void stat(std::ostream &os) const;
+
+    void useContentFetcher(http::ContentFetcher &fetcher);
 
 private:
     class Detail;
