@@ -278,7 +278,7 @@ service::Service::Cleanup Daemon::start()
         http_->startClient(httpClientThreadCount_);
 
         // tell drivers to use out resource fetcher
-        deliveryCache_->useContentFetcher(http_->fetcher());
+        // deliveryCache_->useContentFetcher(http_->fetcher());
     }
 
     return guard;

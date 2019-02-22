@@ -325,6 +325,9 @@ void CacheErrorHandler::handle(const std::exception_ptr &exc)
     } catch (const utility::HttpError&) {
         // pass error
         sink_.error();
+    } catch (...) {
+        // pass everything else to sink
+        sink_.error();
     }
 }
 
