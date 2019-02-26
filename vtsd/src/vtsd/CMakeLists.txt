@@ -1,8 +1,8 @@
 # vtsd - vts delivery daemon
 define_module(BINARY vtsd
   DEPENDS
-  vts-libs-core>=2.11 http>=1.7 service>=1.7
-  slpk>=1.2 imgproc>=1.23 utility>=1.29
+  vts-libs-core>=2.13 http>=1.8 service>=1.7
+  slpk>=1.2 imgproc>=1.23 utility>=1.30
 
   Boost_SERIALIZATION
   Boost_FILESYSTEM
