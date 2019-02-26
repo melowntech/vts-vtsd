@@ -207,7 +207,10 @@ getProxy(const LocationConfig &location, const http::Request &request)
 
 namespace {
 
-class CacheErrorHandler : public ErrorHandler {
+class CacheErrorHandler
+    : public ErrorHandler
+    , public std::enable_shared_from_this<CacheErrorHandler>
+{
 public:
     CacheErrorHandler(DeliveryCache &deliveryCache
                       , const fs::path &filePath
@@ -273,9 +276,10 @@ void CacheErrorHandler::handle(const std::exception_ptr &exc)
         }
 
         // not a directory, check if this is a file-based dataset
+        auto self(shared_from_this());
         deliveryCache_.get
             (filePath_.string()
-             , [=](const DeliveryCache::Expected &value)
+             , [self, this, file](const DeliveryCache::Expected &value)
              mutable -> void
         {
             if (value) {
