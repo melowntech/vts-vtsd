@@ -1,3 +1,10 @@
+vts-vtsd (1.30) stable; urgency=medium
+
+  * Using VTS driver asychronous interface. No more blocking when fetching
+    remote data.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Wed, 27 Feb 2019 16:54:06 +0100
+
 vts-vtsd (1.29) stable; urgency=medium
 
   * More thread safe cache and libhttp.
