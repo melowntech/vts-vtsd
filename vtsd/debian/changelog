@@ -1,3 +1,10 @@
+vts-vtsd (1.31) stable; urgency=medium
+
+  * Supporting boundlayer options in tms resource definition
+  * Supporting freelayer options in geodata resource definition
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Thu, 21 Mar 2019 11:03:02 +0100
+
 vts-vtsd (1.30) stable; urgency=medium
 
   * Using VTS driver asychronous interface. No more blocking when fetching
