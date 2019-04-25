@@ -152,7 +152,7 @@ vtsd --config vtsd.conf
 **NOTE:** You might need to add also `--registry` parameter, and point it to
 previously compiled [VTS-Registry](https://github.com/melown/vts-registry).
 
-Description of the configuration file can be found in our [user documentation](http://melown.readthedocs.io/en/latest/server/vtsd.html).
+Description of the configuration file can be found in our [user documentation](https://vts-geospatial.org/server/vtsd.html).
 
 The server is not intended to be exposed to the Internet as it is, instead it's
 advised to hide it behind e.g. [NGINX](https://www.nginx.com/) server.
