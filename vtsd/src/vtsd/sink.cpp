@@ -177,11 +177,11 @@ private:
 class RoArchiveDataSource : public http::SinkBase::DataSource
 {
 public:
-    RoArchiveDataSource(const roarchive::IStream::pointer &is
+    RoArchiveDataSource(roarchive::IStream::pointer &&is
                         , const std::string &contentType, FileClass fileClass
                         , const FileClassSettings *fileClassSettings
                         , const std::string &trasferEncoding)
-        : http::SinkBase::DataSource(true), is_(is)
+        : http::SinkBase::DataSource(true), is_(std::move(is))
         , size_(is_->size() ? *is_->size() : -1)
         , seekable_(is_->seekable()), off_()
     {
@@ -243,28 +243,29 @@ std::size_t RoArchiveDataSource::read(char *buf, std::size_t size
 
 } // namespace
 
-void Sink::content(const vs::IStream::pointer &stream
-                   , FileClass fileClass)
+void Sink::content(vs::IStream::pointer &&stream, FileClass fileClass)
 {
     sink_->content(std::make_shared<IStreamDataSource>
-                   (stream, fileClass, &locationConfig_.fileClassSettings));
+                   (std::move(stream), fileClass
+                    , &locationConfig_.fileClassSettings));
 }
 
-void Sink::content(const vs::IStream::pointer &stream
+void Sink::content(vs::IStream::pointer &&stream
                    , FileClass fileClass, std::size_t offset, std::size_t size
                    , bool gzipped)
 {
     sink_->content(std::make_shared<SubIStreamDataSource>
-                   (stream, fileClass, &locationConfig_.fileClassSettings
+                   (std::move(stream), fileClass
+                    , &locationConfig_.fileClassSettings
                     , offset, size, gzipped));
 }
 
-void Sink::content(const roarchive::IStream::pointer &stream
+void Sink::content(roarchive::IStream::pointer &&stream
                    , const std::string &contentType, FileClass fileClass
                    , const std::string &trasferEncoding)
 {
     sink_->content(std::make_shared<RoArchiveDataSource>
-                   (stream, contentType
+                   (std::move(stream), contentType
                     , fileClass, &locationConfig_.fileClassSettings
                     , trasferEncoding));
 }

@@ -121,8 +121,7 @@ public:
      * \param stream stream to send
      * \param fileClass file class
      */
-    void content(const vs::IStream::pointer &stream
-                 , FileClass fileClass);
+    void content(vs::IStream::pointer &&stream, FileClass fileClass);
 
     /** Sends content to client.
      * \param stream stream to send
@@ -131,7 +130,7 @@ public:
      * \param size size of content
      * \param gzipped adds Content-Encoding: gzip
      */
-    void content(const vs::IStream::pointer &stream
+    void content(vs::IStream::pointer &&stream
                  , FileClass fileClass, std::size_t offset, std::size_t size
                  , bool gzipped = false);
 
@@ -141,7 +140,7 @@ public:
      * \param fileClass file class
      * \param gzipped adds Content-Encoding: gzip
      */
-    void content(const roarchive::IStream::pointer &stream
+    void content(roarchive::IStream::pointer &&stream
                  , const std::string &contentType
                  , FileClass fileClass
                  , const std::string &trasferEncoding = "");

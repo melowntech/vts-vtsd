@@ -308,7 +308,7 @@ int Daemon::run()
         while (Service::isRunning()) {
             ::usleep(100000);
         }
-    } catch (AbandonAll) {
+    } catch (const AbandonAll&) {
         return EXIT_FAILURE;
     }
 

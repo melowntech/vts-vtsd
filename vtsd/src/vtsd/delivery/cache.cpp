@@ -210,7 +210,7 @@ private:
      */
     boost::optional<asio::io_service::work> work_;
     std::vector<std::thread> workers_;
-    asio::strand maintenanceTimerStrand_;
+    asio::io_service::strand maintenanceTimerStrand_;
     asio::steady_timer maintenanceTimer_;
 
     // cache

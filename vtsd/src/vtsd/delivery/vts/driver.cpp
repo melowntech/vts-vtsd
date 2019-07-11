@@ -231,7 +231,7 @@ private:
 
 void tileFileStream(Sink &sink, const Location &location
                     , const VtsFileInfo &info
-                    , const vs::IStream::pointer &is)
+                    , vs::IStream::pointer &&is)
 {
     switch (info.tileFile) {
     case vs::TileFile::mesh: {
@@ -239,7 +239,8 @@ void tileFileStream(Sink &sink, const Location &location
         auto entry(vts::readMeshTable(*is, is->name())
                    [vts::Mesh::meshIndex()]);
 
-        return sink.content(is, FileClass::data, entry.start, entry.size
+        return sink.content(std::move(is), FileClass::data
+                            , entry.start, entry.size
                             , vs::gzipped(is, entry.start));
     }
 
@@ -273,7 +274,8 @@ void tileFileStream(Sink &sink, const Location &location
                 (fp, utility::HttpCode::Found, FileClass::data);
         }
 
-        return sink.content(is, FileClass::data, entry.start, entry.size);
+        return sink.content(std::move(is), FileClass::data
+                            , entry.start, entry.size);
     }
 
     case vs::TileFile::navtile: {
@@ -281,14 +283,15 @@ void tileFileStream(Sink &sink, const Location &location
         auto entry(vts::NavTile::readTable(*is, is->name())
                    [vts::NavTile::imageIndex()]);
 
-        return sink.content(is, FileClass::data, entry.start, entry.size);
+        return sink.content(std::move(is), FileClass::data
+                            , entry.start, entry.size);
     }
 
     default: break;
     }
 
     // default handler
-    return sink.content(is, FileClass::data);
+    return sink.content(std::move(is), FileClass::data);
 }
 
 void VtsTileSet::handleTile(Sink &sink, const Location &location
@@ -310,10 +313,10 @@ void VtsTileSet::handleTile(Sink &sink, const Location &location
         if (auto is = eis.get(*errorHandler)) {
             try {
                 if (info.flavor == vts::FileFlavor::raw) {
-                    return sink.content(is, FileClass::data);
+                    return sink.content(std::move(is), FileClass::data);
                 }
 
-                tileFileStream(sink, location, info, is);
+                tileFileStream(sink, location, info, std::move(is));
             } catch (...) {
                 (*errorHandler)();
             }

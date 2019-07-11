@@ -100,7 +100,7 @@ void SlpkDriver::handle(Sink sink, const Location &location
 
     if (is) {
         // stream
-        return sink.content(is, ct, FileClass::data, te);
+        return sink.content(std::move(is), ct, FileClass::data, te);
     }
 
     // data (TODO: handle different transfer encoding)

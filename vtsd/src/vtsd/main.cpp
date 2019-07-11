@@ -178,7 +178,7 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
              try {
                  return openVts(path, openOptions, cache, callback
                                 , proxiesConfigured());
-             } catch (vs::NoSuchTileSet) {}
+             } catch (const vs::NoSuchTileSet&) {}
 
              // finally try VTS0
              return openVts0(path);
@@ -236,7 +236,7 @@ void CacheErrorHandler::handle(const std::exception_ptr &exc)
     try {
         // rethrow current exception
         std::rethrow_exception(exc);
-    } catch (vs::NoSuchTileSet) {
+    } catch (const vs::NoSuchTileSet&) {
         boost::system::error_code ec;
         auto status(fs::status(filePath_, ec));
         if (ec) {
