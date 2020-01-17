@@ -6,4 +6,4 @@ ctt-vts-vtsd
 ctt-vts-vtsd-dbg
 *.debhelper
 files
-control
+/control
