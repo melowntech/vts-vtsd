@@ -116,6 +116,12 @@ private:
 void Vts0Driver::handle(Sink sink, const Location &location
                         , const LocationConfig &config)
 {
+    if (config.enableDataset != LocationConfig::Format::native) {
+        return sink.error(utility::makeError<NotFound>
+                          ("vts0 dataset cannot be served in \"%s\" format."
+                           , config.enableDataset));
+    }
+
     Vts0FileInfo info(location.path, config);
 
     switch (info.type) {

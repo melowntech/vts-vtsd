@@ -41,7 +41,12 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "dataset").c_str()
          , po::value(&enableDataset)->default_value(enableDataset)
          , "Enable dataset (tileset, storage, etc.) handling at "
-         "this location.")
+         "this location. Can be wither boolean (\"true\"/\"1\" or "
+         "\"false\"/\"0\") or a served dataset type: \"none\" to disable "
+         "dataset serving, \"native\" to enable dataset serving or other "
+         "supported type. Non-native dataset type possibly leads "
+         "to on-the-fly transformation. Some datasets may outright reject "
+         "serving anything else than native format.")
         ((prefix + "browser").c_str()
          , po::value(&enableBrowser)->default_value(enableBrowser)
          , "Enable built-in browser at this location. NB: only some drivers"
@@ -142,7 +147,7 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
     const
 {
     os << prefix << "dataset = " << enableDataset << "\n";
-    if (enableDataset) {
+    if (!!enableDataset) {
         os << prefix << "browser = " << enableBrowser << "\n";
     }
 
@@ -160,7 +165,7 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         os << prefix << "alias = none\n";
     }
 
-    if (enableDataset) {
+    if (!!enableDataset) {
         for (const auto &var : vars) {
             os << prefix << "variable " << var.first << " = "
                << var.second << "\n";

@@ -320,7 +320,7 @@ void Daemon::handle(const fs::path &filePath
                     , const http::ServerSink::pointer &sink
                     , const LocationConfig &location)
 {
-    if (location.enableDataset) {
+    if (!!location.enableDataset) {
         return handleDataset(*deliveryCache_, filePath, request
                              , Sink(sink, location), location);
     }

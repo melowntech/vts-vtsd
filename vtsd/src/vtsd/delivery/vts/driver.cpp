@@ -219,6 +219,14 @@ private:
     const mc::MapConfig& mapConfig() { return mapConfig_(*delivery_); }
     const mc::Definition& definition() { return definition_(*delivery_); }
 
+    void handleNative(Sink sink, const Location &location
+                      , const LocationConfig &config
+                      , const ErrorHandler::pointer &errorHandler);
+
+    void handle3Dtiles(Sink sink, const Location &location
+                       , const LocationConfig &config
+                       , const ErrorHandler::pointer &errorHandler);
+
     void handleTile(Sink &sink, const Location &location
                     , const LocationConfig &config
                     , const ErrorHandler::pointer &errorHandler
@@ -328,6 +336,24 @@ void VtsTileSet::handle(Sink sink, const Location &location
                         , const LocationConfig &config
                         , const ErrorHandler::pointer &errorHandler)
 {
+    switch (config.enableDataset) {
+    case LocationConfig::Format::native:
+        return handleNative(sink, location, config, errorHandler);
+
+    case LocationConfig::Format::threedtiles:
+        return handle3Dtiles(sink, location, config, errorHandler);
+
+    default:
+        return sink.error(utility::makeError<NotFound>
+                          ("vts tileset cannot be served in \"%s\" format."
+                           , config.enableDataset));
+    }
+}
+
+void VtsTileSet::handleNative(Sink sink, const Location &location
+                              , const LocationConfig &config
+                              , const ErrorHandler::pointer &errorHandler)
+{
     // we want internals
     const VtsFileInfo info
         (location.path, config, ExtraFlags::enableTilesetInternals);
@@ -412,6 +438,17 @@ void VtsTileSet::handle(Sink sink, const Location &location
     }
 }
 
+void VtsTileSet::handle3Dtiles(Sink sink, const Location &location
+                               , const LocationConfig &config
+                               , const ErrorHandler::pointer &errorHandler)
+{
+    return sink.error(utility::makeError<InternalError>
+                      ("WIP"));
+    (void) location;
+    (void) config;
+    (void) errorHandler;
+}
+
 std::shared_ptr<vts::Driver>
 VtsTileSet::asDriver(const DriverWrapper::pointer &driver)
 {
@@ -468,6 +505,12 @@ vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
 void VtsStorage::handle(Sink sink, const Location &location
                         , const LocationConfig &config)
 {
+    if (config.enableDataset != LocationConfig::Format::native) {
+        return sink.error(utility::makeError<NotFound>
+                          ("vts storage cannot be served in \"%s\" format."
+                           , config.enableDataset));
+    }
+
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
@@ -541,6 +584,13 @@ private:
 void VtsStorageView::handle(Sink sink, const Location &location
                             , const LocationConfig &config)
 {
+    if (config.enableDataset != LocationConfig::Format::native) {
+        return sink.error
+            (utility::makeError<NotFound>
+             ("vts storage view cannot be served in \"%s\" format."
+              , config.enableDataset));
+    }
+
     VtsFileInfo info(location.path, config);
 
     if (location.path == constants::Config) {
@@ -645,6 +695,13 @@ const auto fullDebugMask([]() -> std::vector<char>
 void VtsTileIndex::handle(Sink sink, const Location &location
                           , const LocationConfig &config)
 {
+    if (config.enableDataset != LocationConfig::Format::native) {
+        return sink.error
+            (utility::makeError<NotFound>
+             ("vts tileindex cannot be served in \"%s\" format."
+              , config.enableDataset));
+    }
+
     VtsFileInfo info(location.path, config);
 
     switch (info.type) {
@@ -791,7 +848,7 @@ openTileSet(const std::string &path
             asyncOpenStorage(path, cache, storageOpenCallback, forcedReopen);
         }
 
-        // NB: open options are ignore since we have our own
+        // NB: open options are ignored since we have our own
         virtual void openDriver(const boost::filesystem::path &path
                                 , const vts::OpenOptions&
                                 , const DriverOpenCallback::pointer

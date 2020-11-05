@@ -49,9 +49,13 @@ struct LocationConfig {
         prefix, regex
     };
 
+    enum class Format {
+        none, native, threedtiles
+    };
+
     std::string location;
     Match match;
-    bool enableDataset;
+    Format enableDataset = Format::native;
 
     bool enableBrowser;
     bool enableListing;
@@ -78,7 +82,7 @@ struct LocationConfig {
     FileClass configClass;
 
     LocationConfig()
-        : match(Match::prefix), enableDataset(true)
+        : match(Match::prefix)
         , enableBrowser(false), enableListing(false)
         , configClass(FileClass::ephemeral)
     {}
@@ -102,5 +106,15 @@ UTILITY_GENERATE_ENUM_IO(LocationConfig::Match,
                          ((prefix))
                          ((regex))
                          )
+
+UTILITY_GENERATE_ENUM_IO(LocationConfig::Format,
+                         ((none)("none")("false")("0"))
+                         ((native)("native")("true")("1"))
+                         ((threedtiles)("3dtiles"))
+                         )
+
+inline bool operator!(LocationConfig::Format f) {
+    return f == LocationConfig::Format::none;
+}
 
 #endif // httpd_config_hpp_included_
