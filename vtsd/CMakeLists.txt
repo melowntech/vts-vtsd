@@ -46,6 +46,9 @@ add_subdirectory(src/http)
 add_subdirectory(src/roarchive)
 add_subdirectory(src/slpk)
 
+add_subdirectory(src/gltf)
+add_subdirectory(src/3dtiles)
+
 # vts libraries
 if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
   buildsys_nobuild_target(vts-libs)

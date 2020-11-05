@@ -27,6 +27,7 @@ set(vtsd-internals_SOURCES
   # VTS
   delivery/vts/driver.hpp delivery/vts/driver.cpp
   delivery/vts/mapconfig.hpp delivery/vts/mapconfig.cpp
+  delivery/vts/3dtiles.hpp delivery/vts/3dtiles.cpp
 
   # VTS0
   delivery/vts0/driver.hpp delivery/vts0/driver.cpp

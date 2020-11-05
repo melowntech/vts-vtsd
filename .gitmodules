@@ -43,3 +43,9 @@
 [submodule "externals/libslpk"]
 	path = externals/libslpk
 	url = https://github.com/melowntech/libslpk
+[submodule "externals/lib3dtiles"]
+	path = externals/lib3dtiles
+	url = https://github.com/melowntech/lib3dtiles
+[submodule "externals/libgltf"]
+	path = externals/libgltf
+	url = https://github.com/melowntech/libgltf

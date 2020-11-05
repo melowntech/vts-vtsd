@@ -42,6 +42,7 @@
 
 #include "driver.hpp"
 #include "mapconfig.hpp"
+#include "3dtiles.hpp"
 
 namespace fs = boost::filesystem;
 namespace vts = vtslibs::vts;
@@ -223,10 +224,6 @@ private:
                       , const LocationConfig &config
                       , const ErrorHandler::pointer &errorHandler);
 
-    void handle3Dtiles(Sink sink, const Location &location
-                       , const LocationConfig &config
-                       , const ErrorHandler::pointer &errorHandler);
-
     void handleTile(Sink &sink, const Location &location
                     , const LocationConfig &config
                     , const ErrorHandler::pointer &errorHandler
@@ -341,7 +338,7 @@ void VtsTileSet::handle(Sink sink, const Location &location
         return handleNative(sink, location, config, errorHandler);
 
     case LocationConfig::Format::threedtiles:
-        return handle3Dtiles(sink, location, config, errorHandler);
+        return handle3Dtiles(sink, location, config, errorHandler, delivery_);
 
     default:
         return sink.error(utility::makeError<NotFound>
@@ -436,17 +433,6 @@ void VtsTileSet::handleNative(Sink sink, const Location &location
     } catch (...) {
         (*errorHandler)();
     }
-}
-
-void VtsTileSet::handle3Dtiles(Sink sink, const Location &location
-                               , const LocationConfig &config
-                               , const ErrorHandler::pointer &errorHandler)
-{
-    return sink.error(utility::makeError<InternalError>
-                      ("WIP"));
-    (void) location;
-    (void) config;
-    (void) errorHandler;
 }
 
 std::shared_ptr<vts::Driver>
