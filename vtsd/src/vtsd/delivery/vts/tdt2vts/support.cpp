@@ -24,18 +24,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef libvtslibs_http_vts_3dtiles_hpp_included_
-#define libvtslibs_http_vts_3dtiles_hpp_included_
+#include "support.hpp"
 
-#include "vts-libs/vts/tileset/delivery.hpp"
+#include "delivery/vts/tdt2vts/index.html.hpp"
 
-#include "driver.hpp"
+namespace vs = vtslibs::storage;
 
-/** Generate a 3D Tiles dataset from a VTS delivery driver on the fly.
- */
-void handle3Dtiles(Sink sink, const Location &location
-                   , const LocationConfig &config
-                   , const ErrorHandler::pointer &errorHandler
-                   , const vtslibs::vts::Delivery::pointer &delivery);
+namespace vts2tdt {
 
-#endif // libvtslibs_http_vts_3dtiles_hpp_included_
+const vs::SupportFile::Files supportFiles =
+{
+    { "index.html"
+      , {
+            browser::index_html
+            , sizeof(browser::index_html)
+            , browser::index_html_attr_lastModified
+            , "text/html; charset=utf-8"
+            , true
+        }
+    }
+};
+
+} // namespace vts2tdt

@@ -42,7 +42,7 @@
 
 #include "driver.hpp"
 #include "mapconfig.hpp"
-#include "3dtiles.hpp"
+#include "tdt2vts.hpp"
 
 namespace fs = boost::filesystem;
 namespace vts = vtslibs::vts;

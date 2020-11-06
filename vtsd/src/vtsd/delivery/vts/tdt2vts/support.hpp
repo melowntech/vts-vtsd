@@ -24,26 +24,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "3dtiles/3dtiles.hpp"
+#ifndef vtsd_delivery_vts_3dtiles_support_hpp_included_
+#define vtsd_delivery_vts_3dtiles_support_hpp_included_
 
-#include "3dtiles.hpp"
+#include "vts-libs/storage/support.hpp"
 
-namespace fs = boost::filesystem;
-namespace vts = vtslibs::vts;
-namespace vs = vtslibs::storage;
-namespace vr = vtslibs::registry;
+namespace vts2tdt {
 
-/** Generate a 3D Tiles dataset from a VTS delivery driver on the fly.
+/** Compiled-in support files (browser etc).
  */
-void handle3Dtiles(Sink sink, const Location &location
-                   , const LocationConfig &config
-                   , const ErrorHandler::pointer &errorHandler
-                   , const vts::Delivery::pointer &delivery)
-{
-    return sink.error(utility::makeError<InternalError>
-                      ("WIP"));
-    (void) location;
-    (void) config;
-    (void) errorHandler;
-    (void) delivery;
-}
+extern const vtslibs::storage::SupportFile::Files supportFiles;
+
+} // namespace vts2tdt
+
+#endif // vtsd_delivery_vts_3dtiles_support_hpp_included_
