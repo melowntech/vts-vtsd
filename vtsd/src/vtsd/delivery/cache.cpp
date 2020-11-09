@@ -404,7 +404,6 @@ void DeliveryCache::Detail
     bool forcedReopen(false);
 
     if (idrivers != drivers_.end()) {
-        const auto &key(idrivers->first);
         // record found
         auto &record(idrivers->second);
 
