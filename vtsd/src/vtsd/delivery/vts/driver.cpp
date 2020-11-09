@@ -25,7 +25,7 @@
  */
 
 #include <boost/optional.hpp>
-#include <boost/utility/in_place_factory.hpp>
+#include <boost/optional/optional_io.hpp>
 
 #include "imgproc/png.hpp"
 
@@ -216,13 +216,12 @@ public:
     static std::shared_ptr<vts::Driver>
     asDriver(const DriverWrapper::pointer &driver);
 
+    static vts::Delivery::pointer
+    asDelivery(const DriverWrapper::pointer &driver);
+
 private:
     const mc::MapConfig& mapConfig() { return mapConfig_(*delivery_); }
     const mc::Definition& definition() { return definition_(*delivery_); }
-
-    void handleNative(Sink sink, const Location &location
-                      , const LocationConfig &config
-                      , const ErrorHandler::pointer &errorHandler);
 
     void handleTile(Sink &sink, const Location &location
                     , const LocationConfig &config
@@ -333,24 +332,6 @@ void VtsTileSet::handle(Sink sink, const Location &location
                         , const LocationConfig &config
                         , const ErrorHandler::pointer &errorHandler)
 {
-    switch (config.enableDataset) {
-    case LocationConfig::Format::native:
-        return handleNative(sink, location, config, errorHandler);
-
-    case LocationConfig::Format::threedtiles:
-        return handle3Dtiles(sink, location, config, errorHandler, delivery_);
-
-    default:
-        return sink.error(utility::makeError<NotFound>
-                          ("vts tileset cannot be served in \"%s\" format."
-                           , config.enableDataset));
-    }
-}
-
-void VtsTileSet::handleNative(Sink sink, const Location &location
-                              , const LocationConfig &config
-                              , const ErrorHandler::pointer &errorHandler)
-{
     // we want internals
     const VtsFileInfo info
         (location.path, config, ExtraFlags::enableTilesetInternals);
@@ -446,6 +427,17 @@ VtsTileSet::asDriver(const DriverWrapper::pointer &driver)
     throw;
 }
 
+vts::Delivery::pointer
+VtsTileSet::asDelivery(const DriverWrapper::pointer &driver)
+{
+    if (auto d = dynamic_cast<VtsTileSet*>(driver.get())) {
+        return d->delivery_;
+    }
+    LOGTHROW(err1, vs::NoSuchTileSet)
+        << "Not a vts tileset.";
+    throw;
+}
+
 class VtsStorage : public DriverWrapper
 {
 public:
@@ -491,7 +483,7 @@ vts::Storage VtsStorage::asStorage(const DriverWrapper::pointer &driver)
 void VtsStorage::handle(Sink sink, const Location &location
                         , const LocationConfig &config)
 {
-    if (config.enableDataset != LocationConfig::Format::native) {
+    if (!config.native()) {
         return sink.error(utility::makeError<NotFound>
                           ("vts storage cannot be served in \"%s\" format."
                            , config.enableDataset));
@@ -570,7 +562,7 @@ private:
 void VtsStorageView::handle(Sink sink, const Location &location
                             , const LocationConfig &config)
 {
-    if (config.enableDataset != LocationConfig::Format::native) {
+    if (!config.native()) {
         return sink.error
             (utility::makeError<NotFound>
              ("vts storage view cannot be served in \"%s\" format."
@@ -681,7 +673,7 @@ const auto fullDebugMask([]() -> std::vector<char>
 void VtsTileIndex::handle(Sink sink, const Location &location
                           , const LocationConfig &config)
 {
-    if (config.enableDataset != LocationConfig::Format::native) {
+    if (!config.native()) {
         return sink.error
             (utility::makeError<NotFound>
              ("vts tileindex cannot be served in \"%s\" format."
@@ -750,7 +742,8 @@ template <typename CallbackType>
 void asyncOpenStorage(const fs::path &path, DeliveryCache &cache
                       , CallbackType &callback, bool forcedReopen)
 {
-    cache.get(path.c_str(), [callback](const DeliveryCache::Expected &value)
+    cache.get(path.string(), Format::native
+              , [callback](const DeliveryCache::Expected &value)
     {
         try {
             callback->done(std::move(VtsStorage::asStorage(value.get())));
@@ -831,7 +824,8 @@ openTileSet(const std::string &path
                                  , const vts::StorageOpenCallback::pointer
                                  &storageOpenCallback)
         {
-            asyncOpenStorage(path, cache, storageOpenCallback, forcedReopen);
+            asyncOpenStorage(path, cache, storageOpenCallback
+                             , forcedReopen);
         }
 
         // NB: open options are ignored since we have our own
@@ -840,7 +834,8 @@ openTileSet(const std::string &path
                                 , const DriverOpenCallback::pointer
                                 &driverOpenCallback)
         {
-            cache.get(path.c_str(), [this, driverOpenCallback]
+            cache.get(path.string(), Format::native
+                      , [this, driverOpenCallback]
                       (const DeliveryCache::Expected &value)
             {
                 try {
@@ -866,13 +861,12 @@ openTileSet(const std::string &path
     return {};
 }
 
-} // namespace
 
-DriverWrapper::pointer openVts(const std::string &path
-                               , const OpenOptions &openOptions
-                               , DeliveryCache &cache
-                               , const DeliveryCache::Callback &callback
-                               , bool proxiesAllowed)
+DriverWrapper::pointer openVtsImpl(const std::string &path
+                                   , const OpenOptions &openOptions
+                                   , DeliveryCache &cache
+                                   , const DeliveryCache::Callback &callback
+                                   , bool proxiesAllowed)
 {
     switch (vts::datasetType(path)) {
     case vts::DatasetType::TileSet:
@@ -892,8 +886,50 @@ DriverWrapper::pointer openVts(const std::string &path
         return std::make_shared<VtsTileIndex>(path);
 
     default:
-        // no such tileset
-        throw vs::NoSuchTileSet(path);
+        // unknown
+        break;
+    }
+
+    // no such tileset
+    throw vs::NoSuchTileSet(path);
+}
+
+DriverWrapper::pointer open3dTiles(const std::string &path
+                                   , const OpenOptions &openOptions
+                                   , DeliveryCache &cache
+                                   , const DeliveryCache::Callback &callback
+                                   , bool)
+{
+    cache.get(path, Format::native
+              , [=](const DeliveryCache::Expected &value)
+    {
+        try {
+            callback(DriverWrapper::pointer
+                     (std::make_shared<Tdt2VtsTileSet>
+                      (VtsTileSet::asDelivery(value.get()))));
+        } catch (...) {
+            callback(std::current_exception());
+        }
+    }, openOptions.forcedReopen);
+
+    // nothing available so far
+    return {};
+}
+
+} // namespace
+
+DriverWrapper::pointer openVts(const std::string &path
+                               , const OpenOptions &openOptions
+                               , DeliveryCache &cache
+                               , const DeliveryCache::Callback &callback
+                               , bool proxiesAllowed)
+{
+    switch (openOptions.format) {
+    case Format::native:
+        return openVtsImpl(path, openOptions, cache, callback, proxiesAllowed);
+
+    case Format::threedtiles:
+        return open3dTiles(path, openOptions, cache, callback, proxiesAllowed);
     }
 
     return {}; // never reached

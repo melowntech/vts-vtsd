@@ -26,6 +26,8 @@
 
 #include <mutex>
 
+#include <boost/optional/optional_io.hpp>
+
 #include "vts-libs/storage/error.hpp"
 
 #include "vts-libs/vts0/driver.hpp"
@@ -116,7 +118,7 @@ private:
 void Vts0Driver::handle(Sink sink, const Location &location
                         , const LocationConfig &config)
 {
-    if (config.enableDataset != LocationConfig::Format::native) {
+    if (!config.native()) {
         return sink.error(utility::makeError<NotFound>
                           ("vts0 dataset cannot be served in \"%s\" format."
                            , config.enableDataset));

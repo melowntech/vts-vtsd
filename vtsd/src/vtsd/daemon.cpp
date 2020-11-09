@@ -30,7 +30,6 @@
 #include <map>
 #include <numeric>
 
-#include <boost/utility/in_place_factory.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/thread.hpp>
@@ -263,10 +262,10 @@ service::Service::Cleanup Daemon::start()
 {
     auto guard(std::make_shared<Stopper>(*this));
 
-    deliveryCache_ = boost::in_place
+    deliveryCache_.emplace
         (coreThreadCount_, openOptions_, openDriver());
 
-    http_ = boost::in_place();
+    http_.emplace();
     http_->serverHeader(utility::format
                         ("%s/%s", utility::buildsys::TargetName
                          , utility::buildsys::TargetVersion));
@@ -320,7 +319,7 @@ void Daemon::handle(const fs::path &filePath
                     , const http::ServerSink::pointer &sink
                     , const LocationConfig &location)
 {
-    if (!!location.enableDataset) {
+    if (location.enableDataset) {
         return handleDataset(*deliveryCache_, filePath, request
                              , Sink(sink, location), location);
     }

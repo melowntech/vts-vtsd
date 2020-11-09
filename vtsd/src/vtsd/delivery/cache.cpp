@@ -145,7 +145,9 @@ UTILITY_GENERATE_ENUM_IO(Record::Status,
     ((invalid))
 )
 
-typedef std::map<utility::FileId, Record> Drivers;
+using DriverKey = std::pair<utility::FileId, Format>;
+
+typedef std::map<DriverKey, Record> Drivers;
 
 } // namespace
 
@@ -168,9 +170,10 @@ public:
 
     ~Detail() { stop(); }
 
-    Driver get(const std::string &path);
+    Driver ge4t(const std::string &path, Format format);
 
-    void get(const std::string &path, const Callback &callback
+    void get(const std::string &path, Format format
+             , const Callback &callback
              , boost::tribool checkForChange = boost::indeterminate);
 
     void post(const DeliveryCache::Callback &callback
@@ -181,11 +184,12 @@ public:
     void useContentFetcher(http::ContentFetcher &fetcher);
 
 private:
-    void open(Record &record, bool forcedReopen);
+    void open(Record &record, bool forcedReopen, Format format);
     void finishOpen(Record &record, const Expected &value);
 
     void get(std::unique_lock<std::mutex> &lock
              , const std::string &path, const utility::FileId &fid
+             , Format format
              , Drivers::iterator idrivers
              , const Callback &callback
              , const boost::optional<Record::Status> &status = boost::none
@@ -355,15 +359,16 @@ void DeliveryCache::Detail::finishOpen(Record &record, const Expected &value)
     }
 }
 
-void DeliveryCache::Detail::open(Record &record, bool forcedReopen)
+void DeliveryCache::Detail::open(Record &record, bool forcedReopen
+                                 , Format format)
 {
-    ios_.post([this, &record, forcedReopen]() mutable
+    ios_.post([this, &record, forcedReopen, format]() mutable
     {
         try {
             // open driver
             auto driver
                 (openDriver_(record.path
-                             , OpenOptions(openOptions_, forcedReopen)
+                             , OpenOptions(openOptions_, forcedReopen, format)
                              , cache_
                              , [this, &record](const Expected &value)
                              {
@@ -391,6 +396,7 @@ DeliveryCache::~DeliveryCache() {}
 void DeliveryCache::Detail
 ::get(std::unique_lock<std::mutex> &lock
       , const std::string &path, const utility::FileId &fid
+      , Format format
       , Drivers::iterator idrivers, const Callback &callback
       , const boost::optional<Record::Status> &status
       , boost::tribool checkForChange)
@@ -398,6 +404,7 @@ void DeliveryCache::Detail
     bool forcedReopen(false);
 
     if (idrivers != drivers_.end()) {
+        const auto &key(idrivers->first);
         // record found
         auto &record(idrivers->second);
 
@@ -442,7 +449,8 @@ void DeliveryCache::Detail
         }
     } else {
         // create new entry and grab reference to it
-        idrivers = drivers_.insert(Drivers::value_type(fid, Record(path)))
+        idrivers = drivers_.insert
+            (Drivers::value_type(DriverKey(fid, format), Record(path)))
             .first;
     }
 
@@ -451,10 +459,11 @@ void DeliveryCache::Detail
 
     // call open unlocked
     lock.unlock();
-    open(idrivers->second, forcedReopen);
+    open(idrivers->second, forcedReopen, format);
 }
 
 void DeliveryCache::Detail::get(const std::string &path
+                                , Format format
                                 , const Callback &callback
                                 , boost::tribool checkForChange)
 {
@@ -462,8 +471,9 @@ void DeliveryCache::Detail::get(const std::string &path
         const auto fid(utility::FileId::from(path));
 
         std::unique_lock<std::mutex> guard(mutex_);
-        auto idrivers(drivers_.find(fid));
-        get(guard, path, fid, idrivers, callback, boost::none, checkForChange);
+        auto idrivers(drivers_.find(DriverKey(fid, format)));
+        get(guard, path, fid, format, idrivers, callback
+            , boost::none, checkForChange);
     } catch (...) {
         // forward error to callback
         callback(std::current_exception());
@@ -493,10 +503,11 @@ boost::tribool checkForChange(bool forcedReopen)
 
 } // namespace
 
-void DeliveryCache::get(const std::string &path, const Callback &callback
+void DeliveryCache::get(const std::string &path, Format format
+                        , const Callback &callback
                         , bool forcedReopen)
 {
-    workers_->get(path, callback, checkForChange(forcedReopen));
+    workers_->get(path, format, callback, checkForChange(forcedReopen));
 }
 
 void DeliveryCache::post(const DeliveryCache::Callback &callback

@@ -34,6 +34,8 @@ namespace vts = vtslibs::vts;
 namespace vs = vtslibs::storage;
 namespace vr = vtslibs::registry;
 
+namespace tdt = threedtiles;
+
 namespace vts2tdt {
 
 namespace constants {
@@ -113,32 +115,62 @@ FileInfo::FileInfo(const std::string &p, const LocationConfig &config)
     }
 }
 
+template <typename T>
+vs::IStream::pointer serialize(const tdt::Tileset &ts
+                               , const std::string &path
+                               , T &&type
+                               , std::time_t lastModified)
+{
+    auto is(std::make_shared<vs::StringIStream>(type, path, lastModified));
+    tdt::write(is->sink(), ts);
+    is->updateSize();
+    return is;
+}
+
+void generateTileset(Sink &sink, const Location &location
+                     , const vts::Delivery &delivery)
+{
+    const auto &props(delivery.properties());
+
+    tdt::Tileset ts;
+    // use revision as tileset version
+    ts.asset.tilesetVersion = utility::format("%s", props.revision);
+    ts.geometricError = 1e6; // how can I know?
+
+    ts.root = std::make_unique<tdt::Tile>();
+    ts.root->children.emplace_back(std::make_unique<tdt::Tile>());
+    auto &tile(*ts.root->children.back());
+    // tile.boundingVolueme = ;
+    tile.content.emplace();
+    tile.content->uri = "0-0-0.json";
+
+    return sink.content(serialize(ts, location.path, vs::File::config
+                                  , delivery.lastModified())
+                        , FileClass::config);
+}
+
 } // namespace vts2tdt
 
-/** Generate a 3D Tiles dataset from a VTS delivery driver on the fly.
- */
-void handle3Dtiles(Sink sink, const Location &location
-                   , const LocationConfig &config
-                   , const ErrorHandler::pointer &errorHandler
-                   , const vts::Delivery::pointer &delivery)
+Tdt2VtsTileSet::Tdt2VtsTileSet(const vts::Delivery::pointer &delivery)
+    : delivery_(delivery)
+{}
+
+void Tdt2VtsTileSet::handle(Sink sink, const Location &location
+                            , const LocationConfig &config
+                            , const ErrorHandler::pointer &errorHandler)
 {
     // we want internals
     const vts2tdt::FileInfo info(location.path, config);
 
     try {
         switch (info.type) {
-        case FileInfo::Type::definition:
-            return sink.error(utility::makeError<InternalError>
-                              ("TODO: implement me"));
-
         case FileInfo::Type::file:
             if (info.file != vs::File::config) {
                 return sink.error(utility::makeError<NotFound>
                                   ("Unknown file type."));
             }
 
-            return sink.error(utility::makeError<InternalError>
-                              ("TODO: implement me"));
+            return vts2tdt::generateTileset(sink, location, *delivery_);
 
         case FileInfo::Type::tileFile:
             return sink.error(utility::makeError<InternalError>
@@ -157,6 +189,4 @@ void handle3Dtiles(Sink sink, const Location &location
     } catch (...) {
         (*errorHandler)();
     }
-
-    (void) delivery;
 }

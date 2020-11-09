@@ -24,32 +24,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef vtsd_delivery_vts_3dtiles_hpp_included_
-#define vtsd_delivery_vts_3dtiles_hpp_included_
+#ifndef vtsd_format_hpp_included_
+#define vtsd_format_hpp_included_
 
-#include "vts-libs/vts/tileset/delivery.hpp"
+#include "utility/enum-io.hpp"
 
-#include "../driver.hpp"
+UTILITY_GENERATE_ENUM(Format,
+                      ((native)("native"))
+                      ((threedtiles)("3dtiles"))
+                      )
 
-class Tdt2VtsTileSet : public DriverWrapper
-{
-public:
-    Tdt2VtsTileSet(const vtslibs::vts::Delivery::pointer &delivery);
-
-    virtual vs::Resources resources() const {
-        return delivery_->resources();
-    }
-
-    virtual bool externallyChanged() const {
-        return delivery_->externallyChanged();
-    }
-
-    virtual void handle(Sink sink, const Location &location
-                        , const LocationConfig &config
-                        , const ErrorHandler::pointer &errorHandler);
-
-private:
-    vtslibs::vts::Delivery::pointer delivery_;
-};
-
-#endif // vtsd_delivery_vts_3dtiles_hpp_included_
+#endif // vtsd_format_hpp_included_

@@ -279,6 +279,7 @@ void CacheErrorHandler::handle(const std::exception_ptr &exc)
         auto self(shared_from_this());
         deliveryCache_.get
             (filePath_.string()
+             , location_.enableDataset.value_or(Format::native)
              , [self, this, file](const DeliveryCache::Expected &value)
              mutable -> void
         {
@@ -344,6 +345,7 @@ void Vtsd::handleDataset(DeliveryCache &deliveryCache
 {
     deliveryCache.get
         (filePath.parent_path().string()
+         , location.enableDataset.value_or(Format::native)
          , [=, &deliveryCache](const DeliveryCache::Expected &value)
          mutable -> void
     {

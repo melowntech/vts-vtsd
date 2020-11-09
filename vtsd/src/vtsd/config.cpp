@@ -24,6 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <boost/optional/optional_io.hpp>
+
 #include "utility/format.hpp"
 
 #include "config.hpp"
@@ -39,7 +41,8 @@ void LocationConfig::configuration(po::options_description &od
          , utility::format("Match type, one of {%s}."
                            , enumerationString(Match())).c_str())
         ((prefix + "dataset").c_str()
-         , po::value(&enableDataset)->default_value(enableDataset)
+         , po::value<std::string>()->default_value
+         (boost::lexical_cast<std::string>(Format::native))
          , "Enable dataset (tileset, storage, etc.) handling at "
          "this location. Can be wither boolean (\"true\"/\"1\" or "
          "\"false\"/\"0\") or a served dataset type: \"none\" to disable "
@@ -101,9 +104,31 @@ void LocationConfig::configure(const po::variables_map &vars
              , rootName + "," + aliasName);
     }
 
-    if (match == Match::regex) {
-        regex = boost::in_place(location);
-    }
+    if (match == Match::regex) { regex.emplace(location); }
+
+    enableDataset = [&]() -> boost::optional<Format> {
+        const auto option(prefix + "dataset");
+
+        if (!vars.count(option)) { return boost::none; };
+        const auto value(vars[option].as<std::string>());
+
+        if ((value == "false") || (value == "0") || (value == "none")) {
+            return boost::none;
+        }
+
+        if ((value == "true") || (value == "1")) {
+            return Format::native;
+        }
+
+        try {
+            return boost::lexical_cast<Format>(value);
+        } catch (const boost::bad_lexical_cast&) {
+            throw po::validation_error
+                (po::validation_error::invalid_option_value
+                 , option, value);
+        }
+        throw; // never reached
+    }();
 
     const auto proxyHeaderName(prefix + "proxyHeader");
     if (vars.count(proxyHeaderName)) {
@@ -147,7 +172,7 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
     const
 {
     os << prefix << "dataset = " << enableDataset << "\n";
-    if (!!enableDataset) {
+    if (enableDataset) {
         os << prefix << "browser = " << enableBrowser << "\n";
     }
 
@@ -165,7 +190,7 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
         os << prefix << "alias = none\n";
     }
 
-    if (!!enableDataset) {
+    if (enableDataset) {
         for (const auto &var : vars) {
             os << prefix << "variable " << var.first << " = "
                << var.second << "\n";

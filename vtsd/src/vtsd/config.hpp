@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Melown Technologies SE
+ * Copyright (c) 2017-2020 Melown Technologies SE
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -24,8 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef httpd_config_hpp_included_
-#define httpd_config_hpp_included_
+#ifndef vtsd_config_hpp_included_
+#define vtsd_config_hpp_included_
 
 #include <boost/optional.hpp>
 #include <boost/filesystem/path.hpp>
@@ -38,6 +38,7 @@
 #include "vts-libs/vts/options.hpp"
 
 #include "fileclass.hpp"
+#include "format.hpp"
 
 namespace vs = vtslibs::storage;
 
@@ -49,13 +50,9 @@ struct LocationConfig {
         prefix, regex
     };
 
-    enum class Format {
-        none, native, threedtiles
-    };
-
     std::string location;
     Match match;
-    Format enableDataset = Format::native;
+    boost::optional<Format> enableDataset = Format::native;
 
     bool enableBrowser;
     bool enableListing;
@@ -100,6 +97,10 @@ struct LocationConfig {
                    , const std::string &prefix = "");
 
     std::ostream& dump(std::ostream &os, const std::string &prefix = "") const;
+
+    bool native() const {
+        return enableDataset && (*enableDataset == Format::native);
+    }
 };
 
 UTILITY_GENERATE_ENUM_IO(LocationConfig::Match,
@@ -107,14 +108,4 @@ UTILITY_GENERATE_ENUM_IO(LocationConfig::Match,
                          ((regex))
                          )
 
-UTILITY_GENERATE_ENUM_IO(LocationConfig::Format,
-                         ((none)("none")("false")("0"))
-                         ((native)("native")("true")("1"))
-                         ((threedtiles)("3dtiles"))
-                         )
-
-inline bool operator!(LocationConfig::Format f) {
-    return f == LocationConfig::Format::none;
-}
-
-#endif // httpd_config_hpp_included_
+#endif // vtsd_config_hpp_included_

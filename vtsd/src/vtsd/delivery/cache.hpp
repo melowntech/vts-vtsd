@@ -44,6 +44,8 @@
 
 #include "vts-libs/vts/options.hpp"
 
+#include "../format.hpp"
+
 #include "driver.hpp"
 
 // forwards
@@ -52,10 +54,12 @@ namespace http { class ContentFetcher; }
 struct OpenOptions {
     vtslibs::vts::OpenOptions openOptions;
     bool forcedReopen;
+    Format format;
 
     OpenOptions(const vtslibs::vts::OpenOptions &openOptions
-                , bool forcedReopen)
+                , bool forcedReopen, Format format)
         : openOptions(openOptions), forcedReopen(forcedReopen)
+        , format(format)
     {}
 };
 
@@ -85,12 +89,12 @@ public:
      * \param forcedReopen set to true if we are getting driver as a result of
      *                     another driver reopen
      */
-    void get(const std::string &path, const Callback &callback
-             , bool forcedReopen = false);
+    void get(const std::string &path, Format format
+             , const Callback &callback, bool forcedReopen = false);
 
     /** Returns driver for given path. Blocking call.
      */
-    Driver get(const std::string &path);
+    Driver get(const std::string &path, Format format);
 
     /** Use cache's async mechanism to run dunction at background.
      */
