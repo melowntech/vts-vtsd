@@ -364,7 +364,7 @@ void I3sd::handleDataset(DeliveryCache &deliveryCache
     }
 
     deliveryCache.get
-        (sp.dataset
+        (sp.dataset, Format::native
          , [=, &deliveryCache](const DeliveryCache::Expected &value)
          mutable -> void
     {
