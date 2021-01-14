@@ -24,10 +24,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <boost/program_options.hpp>
+
+#include "dbglog/dbglog.hpp"
+
 #include "support.hpp"
 
 #include "delivery/vts/tdt2vts/index.html.hpp"
 
+namespace po = boost::program_options;
 namespace vs = vtslibs::storage;
 
 namespace vts2tdt {
@@ -44,5 +49,35 @@ const vs::SupportFile::Files supportFiles =
         }
     }
 };
+
+const vs::SupportFile::Vars defaultSupportVars([]()
+    -> vs::SupportFile::Vars
+{
+    vs::SupportFile::Vars vars;
+    vars["CESIUM_TERRAIN_PROVIDER_URL"]= "";
+    vars["CESIUM_IMAGERY_PROVIDER_URL"]= "";
+    return vars;
+}());
+
+void varsConfiguration(boost::program_options::options_description &od
+                       , const std::string &prefix
+                       , vtslibs::storage::SupportFile::Vars &vars)
+{
+    if (vars.count("CESIUM_TERRAIN_PROVIDER_URL")) {
+        od.add_options()
+            ((prefix + "cesium.terrainProviderUrl").c_str()
+             , po::value(&vars["CESIUM_TERRAIN_PROVIDER_URL"])
+             , "URL to Cesium terrain provider root directory.")
+            ;
+    }
+
+    if (vars.count("CESIUM_IMAGERY_PROVIDER_URL")) {
+        od.add_options()
+            ((prefix + "cesium.imageryProviderUrl").c_str()
+             , po::value(&vars["CESIUM_IMAGERY_PROVIDER_URL"])
+             , "Cesium imagery provider URL template.")
+            ;
+    }
+}
 
 } // namespace vts2tdt

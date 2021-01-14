@@ -28,6 +28,8 @@
 
 #include "utility/format.hpp"
 
+#include "delivery/vts/po.hpp"
+
 #include "config.hpp"
 
 namespace po = boost::program_options;
@@ -63,9 +65,6 @@ void LocationConfig::configuration(po::options_description &od
         ((prefix + "alias").c_str()
          , po::value(&alias)
          , "Alias this location to another directory (conflicts with root).")
-        ((prefix + "vts.builtinBrowserUrl").c_str()
-         , po::value(&vars["VTS_BUILTIN_BROWSER_URL"])
-         , "URL of built in browser.")
         ((prefix + "proxyHeader").c_str()
          , po::value<std::string>()
          , "Name of proxy header.")
@@ -79,6 +78,10 @@ void LocationConfig::configuration(po::options_description &od
          " file class. Allowed values are \"ephemeral\" and \"config\" only.")
         ;
 
+    // configure variables
+    varsConfiguration(od, prefix, vars);
+
+    // configure file classes
     fileClassSettings.configuration(od, prefix);
 }
 

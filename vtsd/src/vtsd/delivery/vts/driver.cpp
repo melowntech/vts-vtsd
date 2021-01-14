@@ -42,6 +42,7 @@
 
 #include "driver.hpp"
 #include "mapconfig.hpp"
+#include "support.hpp"
 #include "tdt2vts.hpp"
 
 namespace fs = boost::filesystem;
@@ -233,71 +234,6 @@ private:
     mc::LazyConfigHolder<mc::Definition> definition_;
 };
 
-void tileFileStream(Sink &sink, const Location &location
-                    , const VtsFileInfo &info
-                    , vs::IStream::pointer &&is)
-{
-    switch (info.tileFile) {
-    case vs::TileFile::mesh: {
-        // read sub-file table from stream
-        auto entry(vts::readMeshTable(*is, is->name())
-                   [vts::Mesh::meshIndex()]);
-
-        return sink.content(std::move(is), FileClass::data
-                            , entry.start, entry.size
-                            , vs::gzipped(is, entry.start));
-    }
-
-    case vs::TileFile::atlas: {
-        // read sub-file table from stream
-        auto table(vts::Atlas::readTable(*is, is->name()));
-
-        if (info.subTileFile >= table.size()) {
-            LOGTHROW(err1, vs::NoSuchFile)
-                << "Atlas index " << info.subTileFile
-                << " out of range in file: \"" << info.path << "\".";
-        }
-
-        const auto &entry(table[info.subTileFile]);
-
-        // find first entry referencing the same file and redirect if different
-        // than info.subTileFile
-        std::size_t index(info.subTileFile);
-        while (index && (table[index - 1] == entry)) { --index; }
-
-        if (index != info.subTileFile) {
-            // build redirect file path
-            auto fp(vts::filePath(info.tileFile, info.tileId, index));
-            // append query if present
-            if (!location.query.empty()) {
-                fp.push_back('?');
-                fp.append(location.query);
-            }
-
-            return sink.redirect
-                (fp, utility::HttpCode::Found, FileClass::data);
-        }
-
-        return sink.content(std::move(is), FileClass::data
-                            , entry.start, entry.size);
-    }
-
-    case vs::TileFile::navtile: {
-        // read sub-file table from stream
-        auto entry(vts::NavTile::readTable(*is, is->name())
-                   [vts::NavTile::imageIndex()]);
-
-        return sink.content(std::move(is), FileClass::data
-                            , entry.start, entry.size);
-    }
-
-    default: break;
-    }
-
-    // default handler
-    return sink.content(std::move(is), FileClass::data);
-}
-
 void VtsTileSet::handleTile(Sink &sink, const Location &location
                             , const LocationConfig&
                             , const ErrorHandler::pointer &errorHandler
@@ -320,7 +256,9 @@ void VtsTileSet::handleTile(Sink &sink, const Location &location
                     return sink.content(std::move(is), FileClass::data);
                 }
 
-                tileFileStream(sink, location, info, std::move(is));
+                tileFileStream(sink, location, info
+                               , info.subTileFile, info.tileId
+                               , std::move(is));
             } catch (...) {
                 (*errorHandler)();
             }

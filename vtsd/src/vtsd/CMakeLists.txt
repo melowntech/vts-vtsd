@@ -26,9 +26,12 @@ set(vtsd-internals_SOURCES
   # all driver implementations follow:
 
   # VTS
+  delivery/vts/support.hpp delivery/vts/support.cpp
   delivery/vts/driver.hpp delivery/vts/driver.cpp
   delivery/vts/mapconfig.hpp delivery/vts/mapconfig.cpp
   delivery/vts/tdt2vts.hpp delivery/vts/tdt2vts.cpp
+  delivery/vts/tdt2vts/convertors.hpp delivery/vts/tdt2vts/convertors.cpp
+  delivery/vts/po.hpp delivery/vts/tdt2vts/po.hpp
 
   # VTS0
   delivery/vts0/driver.hpp delivery/vts0/driver.cpp

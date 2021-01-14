@@ -35,6 +35,10 @@ namespace vts2tdt {
  */
 extern const vtslibs::storage::SupportFile::Files supportFiles;
 
+/** Default variables for compiled-in support files.
+ */
+extern const vtslibs::storage::SupportFile::Vars defaultSupportVars;
+
 } // namespace vts2tdt
 
 #endif // vtsd_delivery_vts_3dtiles_support_hpp_included_

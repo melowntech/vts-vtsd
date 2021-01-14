@@ -71,6 +71,8 @@ LocationConfig defaultConfig()
 {
     LocationConfig dc;
     dc.vars = vts::defaultSupportVars;
+    dc.vars.insert(vts2tdt::defaultSupportVars.begin()
+                   , vts2tdt::defaultSupportVars.end());
 
     // some file class defaults
     auto &fcs(dc.fileClassSettings);

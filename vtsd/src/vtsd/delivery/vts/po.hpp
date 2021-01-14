@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Melown Technologies SE
+ * Copyright (c) 2021 Melown Technologies SE
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -24,19 +24,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef libvtslibs_http_vts_driver_hpp_included_
-#define libvtslibs_http_vts_driver_hpp_included_
+#ifndef vtsd_delivery_vts_po_hpp_included_
+#define vtsd_delivery_vts_po_hpp_included_
 
-#include "../driver.hpp"
-#include "../cache.hpp"
+#include <boost/program_options.hpp>
 
-// inject support files
-#include "tdt2vts/support.hpp"
+#include "vts-libs/storage/support.hpp"
 
-DriverWrapper::pointer openVts(const std::string &path
-                               , const OpenOptions &openOptions
-                               , DeliveryCache &cache
-                               , const DeliveryCache::Callback &callback
-                               , bool proxiesConfigured);
+void varsConfiguration(boost::program_options::options_description &od
+                       , const std::string &prefix
+                       , vtslibs::storage::SupportFile::Vars &vars);
 
-#endif // libvtslibs_http_vts_driver_hpp_included_
+#endif // vtsd_delivery_vts_po_hpp_included_

@@ -46,15 +46,16 @@ add_subdirectory(src/http)
 add_subdirectory(src/roarchive)
 add_subdirectory(src/slpk)
 
-add_subdirectory(src/gltf)
-add_subdirectory(src/3dtiles)
-
 # vts libraries
 if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
   buildsys_nobuild_target(vts-libs)
 endif()
 
 add_subdirectory(src/vts-libs)
+
+# NB: these must come after vts-libs for mesh support
+add_subdirectory(src/gltf)
+add_subdirectory(src/3dtiles)
 
 if(NOT DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
   # force build of vts tool

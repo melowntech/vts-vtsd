@@ -20,23 +20,44 @@
 Cesium.Ion.defaultAccessToken = "";
 Cesium.Ion.defaultServer = "";
 
-// custom terrain provider
-var terrainProvider = new Cesium.CesiumTerrainProvider({
-    url: "url-to-our-terrain"
-});
+function createTerrainProvider(url)
+{
+    if (!url) { return null; }
+    return new Cesium.CesiumTerrainProvider({url: url});
+}
 
-// custom imagery provider (maptiler)
-var imageryProvider = new Cesium.UrlTemplateImageryProvider({
-    url: "url-to-our-imagery"
-    , tilingScheme : new Cesium.WebMercatorTilingScheme()
-    , maximumLevel: 20
-})
+function createImageryProvider(url)
+{
+    if (!url) { return null; }
+
+    return new Cesium.UrlTemplateImageryProvider({
+        url: url
+        , tilingScheme: new Cesium.GeographicTilingScheme()
+        , minimumLevel: 0
+        , maximumLevel: 2
+        , customTags: {
+            "lod": function(ip, x, y, level) {
+                // NB: tms-global-geodetic starts at LOD=1, where we can have two
+                // tile side-by side
+                return level + 1
+            }
+        }
+    })
+}
+
+// custom terrain and imagery providers
+var terrainProvider = createTerrainProvider("{{{CESIUM_TERRAIN_PROVIDER_URL}}}");
+var imageryProvider = (terrainProvider
+                       ? createImageryProvider("{{{CESIUM_IMAGERY_PROVIDER_URL}}}")
+                       : null);
 
 // viewer: disable almost everything, use custom imagery and terrain providers
 var viewer = new Cesium.Viewer('cesiumContainer', {
     geocoder: false
     , baseLayerPicker: false
     , sceneModePicker: false
+    , fullscreenButton: true
+    , navigationHelpButton: true
     , homeButton: false
     , infoBox: false
     , timeline: false
@@ -44,9 +65,8 @@ var viewer = new Cesium.Viewer('cesiumContainer', {
     , scene3DOnly: true
     , navigationInstructionsInitiallyVisible: false
     , selectionIndicator: false
-// TODO: uncomment
-//    , imageryProvider: imageryProvider
-//    , terrainProvider: terrainProvider
+    , imageryProvider: imageryProvider
+    , terrainProvider: terrainProvider
 });
 
 viewer.scene.frameState.creditDisplay.addDefaultCredit(new Cesium.Credit('<a target="_blank" href="https://www.melown.com/">&copy;2020 Melown Technologies SE</a>'));
@@ -58,9 +78,11 @@ var tileset = new Cesium.Cesium3DTileset({
 });
 
 tileset.readyPromise.then(function(tileset) {
-viewer.scene.primitives.add(tileset);
+    viewer.scene.primitives.add(tileset);
+    console.log("bounding sphere: ", tileset.boundingSphere);
     // look at the tileset
-    viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(-0.3, -0.8, tileset.boundingSphere.radius * 0.5));
+    var distance = tileset.boundingSphere.radius * 0.5;
+    viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(-0.3, -0.8, distance));
 }).otherwise(function(error) {
     console.log(error);
 });

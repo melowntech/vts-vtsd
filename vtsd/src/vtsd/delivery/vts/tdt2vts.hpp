@@ -28,8 +28,11 @@
 #define vtsd_delivery_vts_3dtiles_hpp_included_
 
 #include "vts-libs/vts/tileset/delivery.hpp"
+#include "vts-libs/vts/csconvertor.hpp"
 
 #include "../driver.hpp"
+
+#include "tdt2vts/convertors.hpp"
 
 class Tdt2VtsTileSet : public DriverWrapper
 {
@@ -50,6 +53,9 @@ public:
 
 private:
     vtslibs::vts::Delivery::pointer delivery_;
+    vtslibs::registry::ReferenceFrame referenceFrame_;
+
+    vts2tdt::PerThreadConvertors convertors_;
 };
 
 #endif // vtsd_delivery_vts_3dtiles_hpp_included_
