@@ -27,6 +27,7 @@
 #ifndef vtsd_delivery_vts_tdt2vts_convertors_hpp_included_
 #define vtsd_delivery_vts_tdt2vts_convertors_hpp_included_
 
+#include <new>
 #include <map>
 
 #include <boost/thread/tss.hpp>
@@ -58,6 +59,8 @@ private:
  */
 class PerThreadConvertors {
 public:
+    using pointer = std::shared_ptr<PerThreadConvertors>;
+
     PerThreadConvertors(const vtslibs::registry::ReferenceFrame &rf);
 
     Convertors get() const;

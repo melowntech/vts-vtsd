@@ -142,6 +142,39 @@ vts::MetaTile loadMetaTile(const vts::TileId &tileId
     return vts::loadMetaTile(*is, metaBinaryOrder, is->name());
 }
 
+struct AsyncMeta {
+    vts::MetaTile meta;
+    std::time_t lastModified;
+
+    AsyncMeta(vts::MetaTile meta, std::time_t lastModified)
+        : meta(std::move(meta)), lastModified(lastModified)
+    {}
+
+    using callback = std::function<void(AsyncMeta)>;
+};
+
+void loadMetaTile(const vts::TileId &tileId, const vts::Delivery &delivery
+                  , unsigned int metaBinaryOrder
+                  , ErrorHandler::pointer errorHandler
+                  , AsyncMeta::callback cb)
+{
+    delivery.input(tileId, vts::TileFile::meta, vts::FileFlavor::raw
+                   , [=, errorHandler{std::move(errorHandler)}
+                      , cb{std::move(cb)}]
+                   (const vts::EIStream &eis) mutable
+    {
+        if (auto is = eis.get(*errorHandler)) {
+            try {
+                cb(AsyncMeta
+                   (vts::loadMetaTile(*is, metaBinaryOrder, is->name())
+                    , is->stat().lastModified));
+            } catch (...) {
+                (*errorHandler)();
+            }
+        }
+    });
+}
+
 math::Extents3 regionExtents(const vts::NodeInfo &ni
                              , const vts::GeomExtents::ZRange &z
                              , const Convertors &convertors)
@@ -172,37 +205,6 @@ tdt::Region region(const vts::MetaNode &node
     return region;
 }
 
-tdt::BoundingVolume boundingVolume(const vts::MetaNode &node
-                                   , const vts::NodeInfo &ni
-                                   , const Convertors &convertors)
-{
-    if (node.real()) {
-        // real data, make region from SDS and geom extents
-        return region(node, ni, convertors);
-    }
-
-    const auto &fromPhys(convertors());
-
-    auto e(vr::denormalizedExtents(ni.referenceFrame(), node.extents));
-
-    if (fromPhys) {
-        // TODO: we have to convert bbox from physical SRS to destination SRS,
-        // probably all 8 corners and then create new bounding box around them
-        // in destination SRS
-    }
-
-    auto c(math::center(e));
-
-    // make axis-aligned box (because we have no other way to make it)
-    tdt::Box box;
-    box.center = box.x = box.y = box.z = c;
-    box.x(0) = e.ur(0) - c(0);
-    box.y(1) = e.ur(1) - c(1);
-    box.z(2) = e.ur(2) - c(2);
-
-    return box;
-}
-
 inline std::string filename(const vts::TileId &tileId
                             , const std::string &ext
                             , const boost::optional<int> &sub = boost::none)
@@ -215,60 +217,115 @@ inline std::string filename(const vts::TileId &tileId
 }
 
 struct MetaBuilder {
-    MetaBuilder(Sink &sink, const Location &location
-                , const vts::Delivery &delivery
-                , const vr::ReferenceFrame &referenceFrame
-                , const Convertors &convertors
-                , const vts::TileId &rootId
-                , unsigned int depth = 1024
-                , bool optimizeBottom = true)
-        : sink(sink), location(location)
-        , delivery(delivery)
-        , referenceFrame(referenceFrame)
-        , convertors(convertors)
-        , rootId(rootId)
-        , mbo(referenceFrame.metaBinaryOrder)
-        , ti(delivery.index())
-        , lastModified()
-        , optimizeBottom(optimizeBottom)
-    {
-        if (depth > mbo) { depth = mbo; }
+    using pointer = std::shared_ptr<MetaBuilder>;
+    using CompletionHandler = std::function<void(MetaBuilder&)>;
 
-        // 2) find stack of binary-order metatiles
-        auto tid(rootId);
-        for (unsigned int i = 0; i <= depth;
-             ++i, tid = vts::lowestChild(tid))
-        {
+    MetaBuilder(const vts::Delivery::pointer &delivery
+                , const vr::ReferenceFrame &referenceFrame
+                , PerThreadConvertors::pointer ptc
+                , const vts::TileId &rootId
+                , bool optimizeBottom = true)
+        : delivery_(delivery)
+        , referenceFrame_(referenceFrame)
+        , ptc_(std::move(ptc))
+        , rootId_(rootId)
+        , ti_(delivery->index())
+        , lastModified_()
+        , optimizeBottom_(optimizeBottom)
+    {}
+
+    void load(int depth = -1) {
+        const auto mbo(referenceFrame_.metaBinaryOrder);
+        if (depth < 0) { depth = mbo; }
+
+        // find stack of binary-order metatiles
+        auto tid(rootId_);
+
+        for (int i = 0; i <= depth; ++i, tid = vts::lowestChild(tid)) {
             const auto mid(vts::metaId(tid, mbo));
-            if (!ti.meta(mid)) { break; }
+            if (!ti_.meta(mid)) { break; }
             std::time_t lm;
-            metas.push_back(loadMetaTile(mid, delivery, mbo, &lm));
-            lastModified = std::max(lastModified, lm);
+            metas_.push_back(loadMetaTile(mid, *delivery_, mbo, &lm));
+            lastModified_ = std::max(lastModified_, lm);
         }
     }
 
-    void run(tdt::Tileset &&ts = {}) {
-        if (metas.empty()) {
-            return sink.error(utility::makeError<NotFound>
-                              ("No metanodes in this subtree."));
-        }
+    static void load_async(const pointer &self
+                           , const ErrorHandler::pointer &errorHandler
+                           , const CompletionHandler &cb
+                           , int depth = -1)
+    {
+        if (depth < 0) { depth = self->referenceFrame_.metaBinaryOrder; }
+
+        // find stack of binary-order metatiles
+        loadNext(self, errorHandler, cb, self->rootId_, depth);
+    }
+
+    bool run(tdt::Tileset &ts) {
+        if (metas_.empty()) { return false; }
 
         // what version to use in subtilesets?
         ts.asset.tilesetVersion
-            = utility::format("%s", delivery.properties().revision);
+            = utility::format("%s", delivery_->properties().revision);
 
-        ts.root = traverse(vts::NodeInfo(referenceFrame, rootId)
-                               , metas.begin(), metas.end());
+        ts.root = traverse(ptc_->get()
+                           , vts::NodeInfo(referenceFrame_, rootId_)
+                           , metas_.begin(), metas_.end());
         // copy geometric error?
         ts.geometricError = ts.root->geometricError;
 
-        return sink.content
-            (serialize(ts, location.path, vs::File::config, lastModified)
-             , FileClass::data);
+        return true;
     };
 
+    template <typename FileType>
+    void send(Sink &sink, const Location &location, const tdt::Tileset &ts
+              , FileType fileType, FileClass fileClass
+              , std::time_t lastModified)
+    {
+        return sink.content
+            (serialize(ts, location.path, fileType, lastModified)
+             , fileClass);
+    }
+
+    void send(Sink &sink, const Location &location, const tdt::Tileset &ts)
+    {
+        return send(sink, location, ts, vs::TileFile::meta, FileClass::data
+                    , lastModified_);
+    }
+
+    vts::Delivery& delivery() const { return *delivery_; }
+
+private:
+    static void loadNext(pointer self
+                         , const ErrorHandler::pointer &errorHandler
+                         , CompletionHandler cb
+                         , const vts::TileId &tileId, int left)
+    {
+        const auto mbo(self->referenceFrame_.metaBinaryOrder);
+        const auto metaId(vts::metaId(tileId, mbo));
+        if (!self->ti_.meta(metaId)) { return cb(*self); }
+
+        // capture "delivery" because "self" is moved into lambda
+        auto &delivery(*self->delivery_);
+
+        // run asynchronously
+        loadMetaTile(metaId, delivery, mbo, errorHandler
+                     , [=, self{std::move(self)}, cb{std::move(cb)}]
+                     (AsyncMeta ameta)
+        {
+            self->lastModified_
+                = std::max(ameta.lastModified, self->lastModified_);
+            self->metas_.push_back(std::move(ameta.meta));
+
+            if (!left) { cb(*self); return; }
+
+            loadNext(std::move(self), errorHandler, std::move(cb)
+                     , vts::lowestChild(tileId), left - 1);
+        });
+    }
+
     tdt::Tile::pointer
-    traverse(const vts::NodeInfo &ni
+    traverse(const Convertors &convertors, const vts::NodeInfo &ni
              , vts::MetaTile::list::const_iterator imeta
              , const vts::MetaTile::list::const_iterator &emeta)
     {
@@ -301,7 +358,7 @@ struct MetaBuilder {
 
         // should we use a link to other meta pyramid?
         bool link(bottom && hasChildren);
-        if (bottom && !optimizeBottom && !hasChildren) {
+        if (bottom && !optimizeBottom_ && !hasChildren) {
             // special case if we should not optimize meta tree
             link = true;
         }
@@ -332,7 +389,7 @@ struct MetaBuilder {
         if (!bottom) {
             for (const auto &child : vts::children(*node, tileId)) {
                 tile->children.push_back
-                    (traverse(ni.child(child), imeta, emeta));
+                    (traverse(convertors, ni.child(child), imeta, emeta));
 
                 if (!node->real()) {
                     // accumulate children bounding volume's in non-real
@@ -355,7 +412,7 @@ struct MetaBuilder {
              */
 
             // TODO: generate resolution as well
-            const auto extents(measure(ni, node->geomExtents.z));
+            const auto extents(measure(convertors, ni, node->geomExtents.z));
 
             // use subtree extents
             br.extents = extents;
@@ -373,7 +430,8 @@ struct MetaBuilder {
     };
 
     math::Extents3
-    measure(const vts::NodeInfo &ni
+    measure(const Convertors &convertors
+            , const vts::NodeInfo &ni
             , const vts::GeomExtents::ZRange &z)
     {
         // TODO: limit depth?
@@ -382,7 +440,7 @@ struct MetaBuilder {
 
         const vts::TileId tileId(ni.nodeId());
 
-        const auto flags(ti.tileIndex.get(tileId));
+        const auto flags(ti_.tileIndex.get(tileId));
 
         // real tile -> use extents
         if (FT::isReal(flags)) {
@@ -393,11 +451,11 @@ struct MetaBuilder {
 
         // check if there are any children, i.e. subtree starting at this tile
         // ID must be valid in next lod's tree (yes, quadtree magic)
-        if (!ti.tileIndex.validSubtree(tileId.lod + 1, tileId)) { return e; }
+        if (!ti_.tileIndex.validSubtree(tileId.lod + 1, tileId)) { return e; }
 
         // let's traverse children
         for (const auto &child : vts::children(tileId)) {
-            auto ce(measure(ni.child(child), z));
+            auto ce(measure(convertors, ni.child(child), z));
             if (math::valid(ce)) {
                 math::update(e, ce);
             }
@@ -406,54 +464,110 @@ struct MetaBuilder {
         return e;
     }
 
-    Sink &sink;
-    const Location &location;
-    const vts::Delivery &delivery;
-    const vr::ReferenceFrame &referenceFrame;
-    const Convertors &convertors;
-    const vts::TileId &rootId;
+    vts::Delivery::pointer delivery_;
+    const vr::ReferenceFrame &referenceFrame_;
+    const PerThreadConvertors::pointer ptc_;
+    const vts::TileId rootId_;
 
-    const unsigned int mbo;
-    const vts::tileset::Index &ti;
+    const vts::tileset::Index &ti_;
 
-    std::time_t lastModified;
-    bool optimizeBottom;
+    std::time_t lastModified_;
+    bool optimizeBottom_;
 
-    vts::MetaTile::list metas;
+    vts::MetaTile::list metas_;
 };
 
+void finishMeta(Sink &sink, const Location &location, MetaBuilder &mb)
+{
+    auto &delivery(mb.delivery());
+
+    tdt::Tileset ts;
+    if (!mb.run(ts)) {
+        return sink.error(utility::makeError<NotFound>
+                          ("No metanodes in this subtree."));
+    }
+    mb.send(sink, location, ts, vs::File::config, FileClass::data
+            , delivery.lastModified());
+}
+
 void generateMeta(Sink &sink, const Location &location
-                  , const vts::Delivery &delivery
+                  , const ErrorHandler::pointer &errorHandler
+                  , const vts::Delivery::pointer &delivery
                   , const vr::ReferenceFrame &referenceFrame
-                  , const Convertors &convertors
+                  , const PerThreadConvertors::pointer &convertors
                   , const vts::TileId &rootId)
 {
     // we need to load metatile pyramid starting at rootId
 
-    // 1) check if tileId is root of metanode pyramid
+    // check if tileId is root of metanode pyramid
     if (rootId.lod % referenceFrame.metaBinaryOrder) {
         return sink.error(utility::makeError<NotFound>
                           ("Not a metanode pyramid root."));
     }
 
+    if (!delivery->async()) {
+        MetaBuilder mb(delivery, referenceFrame, convertors, rootId);
+        mb.load();
+        return finishMeta(sink, location, mb);
+    }
 
-    return MetaBuilder(sink, location, delivery, referenceFrame
-                       , convertors, rootId).run();
+    MetaBuilder::load_async(std::make_shared<MetaBuilder>
+                            (delivery, referenceFrame, convertors, rootId)
+                            , errorHandler
+                            , [=](MetaBuilder &mb) mutable
+    {
+        try {
+            finishMeta(sink, location, mb);
+        } catch (...) {
+            (*errorHandler)();
+        }
+    });
+}
+
+void finishTileset(Sink &sink, const Location &location
+                   , const LocationConfig &config, MetaBuilder &mb)
+{
+    auto &delivery(mb.delivery());
+
+    tdt::Tileset ts;
+    if (!mb.run(ts)) {
+        return sink.error(utility::makeError<NotFound>
+                          ("No metanodes in this subtree."));
+    }
+
+    // use revision as tileset version
+    ts.asset.tilesetVersion
+        = utility::format("%s", delivery.properties().revision);
+
+    mb.send(sink, location, ts, vs::File::config, config.configClass
+            , delivery.lastModified());
 }
 
 void generateTileset(Sink &sink, const Location &location
-                     , const vts::Delivery &delivery
+                     , const LocationConfig &config
+                     , const ErrorHandler::pointer &errorHandler
+                     , const vts::Delivery::pointer &delivery
                      , const vr::ReferenceFrame &referenceFrame
-                     , const Convertors &convertors)
+                     , const PerThreadConvertors::pointer &convertors)
 {
-    const auto &props(delivery.properties());
+    if (!delivery->async()) {
+        MetaBuilder mb(delivery, referenceFrame, convertors, {}, false);
+        mb.load(0);
+        return finishTileset(sink, location, config, mb);
+    }
 
-    tdt::Tileset ts;
-    // use revision as tileset version
-    ts.asset.tilesetVersion = utility::format("%s", props.revision);
-
-    return MetaBuilder(sink, location, delivery, referenceFrame
-                       , convertors, {}, 0, false).run(std::move(ts));
+    MetaBuilder::load_async(std::make_shared<MetaBuilder>
+                            (delivery, referenceFrame, convertors
+                             , vts::TileId(), false)
+                            , errorHandler
+                            , [=](MetaBuilder &mb) mutable
+    {
+        try {
+            finishTileset(sink, location, config, mb);
+        } catch (...) {
+            (*errorHandler)();
+        }
+    }, 0);
 }
 
 /** Image source.
@@ -500,14 +614,17 @@ private:
 
 void generateMesh(Sink &sink, const Location &location
                   , const vts::Delivery &delivery
-                  , const ErrorHandler::pointer &errorHandler
-                  , const vts::CsConvertor &fromPhys
+                  , ErrorHandler::pointer errorHandler
+                  , PerThreadConvertors::pointer ptc
                   , const vts::TileId &tileId)
 {
     // run asynchronously
     delivery.driver()->input
         (tileId, vs::TileFile::mesh
-         , [&, sink, location](const vts::EIStream &eis)
+         , [&, sink{std::move(sink)}, location
+            , errorHandler{std::move(errorHandler)}
+            , ptc{std::move(ptc)}]
+         (const vts::EIStream &eis)
          mutable -> void
     {
         if (auto is = eis.get(*errorHandler)) {
@@ -515,6 +632,8 @@ void generateMesh(Sink &sink, const Location &location
                 auto mesh(vts::loadMesh(is));
 
                 // convert from physical system to destination, if different
+                // than destination system
+                const auto &fromPhys(ptc->get()());
                 if (fromPhys) {
                     for (auto &sm : mesh) {
                         for (auto &v : sm.vertices) { v = fromPhys(v); }
@@ -547,7 +666,8 @@ void generateAtlas(Sink &sink, const Location &location
     // run asynchronously
     delivery.input(fileInfo.tileId, fileInfo.tileFile
                    , vts::FileFlavor::raw
-                   , [=](const vts::EIStream &eis) mutable -> void
+                   , [=, errorHandler{std::move(errorHandler)}]
+                   (const vts::EIStream &eis) mutable
     {
         if (auto is = eis.get(*errorHandler)) {
             try {
@@ -561,27 +681,14 @@ void generateAtlas(Sink &sink, const Location &location
     });
 }
 
-vts::CsConvertor makePhysConv(const vr::ReferenceFrame &rf)
-{
-    const auto &phys(rf.model.physicalSrs);
-
-    const auto &srs(vr::system.srs.get(rf.model.physicalSrs));
-
-    if (srs.type == vr::Srs::Type::cartesian) {
-        // should be geocent -> no conversion
-        return {};
-    }
-
-    return vts::CsConvertor(phys, geo::geocentric(srs.srsDef));
-}
-
 } // namespace vts2tdt
 
 Tdt2VtsTileSet::Tdt2VtsTileSet(const vts::Delivery::pointer &delivery)
     : delivery_(delivery)
     , referenceFrame_(vr::system.referenceFrames
                       (delivery_->properties().referenceFrame))
-    , convertors_(referenceFrame_)
+    , convertors_(std::make_shared<vts2tdt::PerThreadConvertors>
+                  (referenceFrame_))
 {
 }
 
@@ -591,9 +698,6 @@ void Tdt2VtsTileSet::handle(Sink sink, const Location &location
 {
     const vts2tdt::FileInfo info(location.path, config);
 
-    // make sure we have local CS convertors available
-    const auto convertors(convertors_.get());
-
     try {
         switch (info.type) {
         case FileInfo::Type::file:
@@ -602,21 +706,22 @@ void Tdt2VtsTileSet::handle(Sink sink, const Location &location
                                   ("Unknown file type."));
             }
 
-            return vts2tdt::generateTileset(sink, location, *delivery_
-                                            , referenceFrame_
-                                            , convertors);
+            return vts2tdt::generateTileset(sink, location, config
+                                            , errorHandler
+                                            , delivery_, referenceFrame_
+                                            , convertors_);
 
         case FileInfo::Type::tileFile:
             switch (info.tileFile) {
             case vs::TileFile::meta:
-                return vts2tdt::generateMeta(sink, location, *delivery_
-                                             , referenceFrame_
-                                             , convertors, info.tileId);
+                return vts2tdt::generateMeta(sink, location, errorHandler
+                                             , delivery_, referenceFrame_
+                                             , convertors_, info.tileId);
 
             case vs::TileFile::mesh:
                 return vts2tdt::generateMesh(sink, location, *delivery_
                                              , errorHandler
-                                             , convertors()
+                                             , convertors_
                                              , info.tileId);
 
             case vs::TileFile::atlas:
@@ -626,8 +731,8 @@ void Tdt2VtsTileSet::handle(Sink sink, const Location &location
             default: break;
             }
 
-            return sink.error(utility::makeError<InternalError>
-                              ("TODO: implement me"));
+            return sink.error(utility::makeError<NotFound>
+                              ("Unhandled file type."));
 
         case FileInfo::Type::support:
             sink.content(info.support->second);
@@ -636,7 +741,7 @@ void Tdt2VtsTileSet::handle(Sink sink, const Location &location
         default: break;
         }
 
-        // wtf?
+        // huh?
         sink.error(utility::makeError<NotFound>("Unknown file type."));
     } catch (...) {
         (*errorHandler)();

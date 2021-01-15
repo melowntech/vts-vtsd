@@ -53,9 +53,14 @@ public:
 
 private:
     vtslibs::vts::Delivery::pointer delivery_;
-    vtslibs::registry::ReferenceFrame referenceFrame_;
 
-    vts2tdt::PerThreadConvertors convertors_;
+    /** Reference into registry.
+     */
+    const vtslibs::registry::ReferenceFrame &referenceFrame_;
+
+    /** CS convertor cache
+     */
+    vts2tdt::PerThreadConvertors::pointer convertors_;
 };
 
 #endif // vtsd_delivery_vts_3dtiles_hpp_included_
