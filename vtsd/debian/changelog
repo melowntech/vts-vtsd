@@ -1,3 +1,9 @@
+vts-vtsd (1.32) stable; urgency=medium
+
+  * On-the-fly 3DTiles support
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Mon, 18 Jan 2021 12:14:43 +0100
+
 vts-vtsd (1.31) stable; urgency=medium
 
   * Supporting boundlayer options in tms resource definition
