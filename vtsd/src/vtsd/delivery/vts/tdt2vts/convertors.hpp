@@ -24,8 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef vtsd_delivery_vts_tdt2vts_convertors_hpp_included_
-#define vtsd_delivery_vts_tdt2vts_convertors_hpp_included_
+#ifndef vtsd_delivery_vts_vts2tdt_convertors_hpp_included_
+#define vtsd_delivery_vts_vts2tdt_convertors_hpp_included_
 
 #include <new>
 #include <map>
@@ -87,4 +87,4 @@ private:
 
 } // namespace vts2tdt
 
-#endif // vtsd_delivery_vts_tdt2vts_convertors_hpp_included_
+#endif // vtsd_delivery_vts_vts2tdt_convertors_hpp_included_

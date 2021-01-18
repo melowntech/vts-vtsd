@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2020 Melown Technologies SE
+ * Copyright (c) 2021 Melown Technologies SE
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -24,41 +24,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef vtsd_delivery_vts_vts2tdt_support_hpp_included_
-#define vtsd_delivery_vts_vts2tdt_support_hpp_included_
+#ifndef vtsd_delivery_vts_vts2tdt_constants_hpp_included_
+#define vtsd_delivery_vts_vts2tdt_constants_hpp_included_
 
-#include "vts-libs/storage/support.hpp"
-#include "vts-libs/vts/basetypes.hpp"
+#include <string>
 
 namespace vts2tdt {
 
-/** Compiled-in support files (browser etc).
- */
-extern const vtslibs::storage::SupportFile::Files supportFiles;
-
-/** Default variables for compiled-in support files.
- */
-extern const vtslibs::storage::SupportFile::Vars defaultSupportVars;
-
-/** Build filename for tile tile
- */
-std::string filename(const vtslibs::vts::TileId &tileId
-                     , const std::string &ext
-                     , const boost::optional<int> &sub = boost::none);
-
-// inlines
-
-inline std::string filename(const vtslibs::vts::TileId &tileId
-                            , const std::string &ext
-                            , const boost::optional<int> &sub)
-{
-    std::ostringstream os;
-    os << tileId.lod << '-' << tileId.x << '-' << tileId.y;
-    if (sub) { os << '-' << *sub; }
-    os << '.' << ext;
-    return os.str();
+namespace constants {
+    const std::string JsonExt("json");
+    const std::string B3dmExt("b3dm");
+    const std::string JpegExt("jpg");
 }
 
 } // namespace vts2tdt
 
-#endif // vtsd_delivery_vts_vts2tdt_support_hpp_included_
+#endif // vtsd_delivery_vts_vts2tdt_constants_hpp_included_

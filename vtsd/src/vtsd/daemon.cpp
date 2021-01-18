@@ -286,6 +286,8 @@ service::Service::Cleanup Daemon::start()
 void Daemon::cleanup()
 {
     // destroy delivery cache first
+    // FIXME: makes problems when under heavy load
+    // TODO: stop accepting new connections, tear down existing ones and destroy
     deliveryCache_ = boost::none;
     http_ = boost::none;
 }

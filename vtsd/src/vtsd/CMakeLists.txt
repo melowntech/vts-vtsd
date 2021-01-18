@@ -31,6 +31,7 @@ set(vtsd-internals_SOURCES
   delivery/vts/mapconfig.hpp delivery/vts/mapconfig.cpp
   delivery/vts/tdt2vts.hpp delivery/vts/tdt2vts.cpp
   delivery/vts/tdt2vts/convertors.hpp delivery/vts/tdt2vts/convertors.cpp
+  delivery/vts/tdt2vts/metabuilder.hpp delivery/vts/tdt2vts/metabuilder.cpp
   delivery/vts/po.hpp delivery/vts/tdt2vts/po.hpp
 
   # VTS0
