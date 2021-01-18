@@ -86,14 +86,19 @@ class IStreamDataSource : public http::ServerSink::DataSource {
 public:
     IStreamDataSource(const vs::IStream::pointer &stream
                       , FileClass fileClass
-                      , const FileClassSettings *fileClassSettings)
+                      , const FileClassSettings *fileClassSettings
+                      , bool gzipped = false)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
                              , cacheControl(fileClass, fileClassSettings)))
     {
         // do not fail on eof
         stream->get().exceptions(std::ios::badbit);
-    }
+
+         if (gzipped) {
+            headers_.emplace_back("Content-Encoding", "gzip");
+        }
+   }
 
     virtual http::SinkBase::FileInfo stat() const {
         return fs_;
@@ -243,11 +248,13 @@ std::size_t RoArchiveDataSource::read(char *buf, std::size_t size
 
 } // namespace
 
-void Sink::content(vs::IStream::pointer &&stream, FileClass fileClass)
+void Sink::content(vs::IStream::pointer &&stream, FileClass fileClass
+                   , bool gzipped)
 {
     sink_->content(std::make_shared<IStreamDataSource>
                    (std::move(stream), fileClass
-                    , &locationConfig_.fileClassSettings));
+                    , &locationConfig_.fileClassSettings
+                    , gzipped));
 }
 
 void Sink::content(vs::IStream::pointer &&stream

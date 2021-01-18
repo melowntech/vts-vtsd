@@ -121,7 +121,8 @@ public:
      * \param stream stream to send
      * \param fileClass file class
      */
-    void content(vs::IStream::pointer &&stream, FileClass fileClass);
+    void content(vs::IStream::pointer &&stream, FileClass fileClass
+                 , bool gzipped = false);
 
     /** Sends content to client.
      * \param stream stream to send

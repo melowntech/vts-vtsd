@@ -27,6 +27,8 @@
 #ifndef vtsd_delivery_vts_vts2tdt_metabuilder_hpp_included_
 #define vtsd_delivery_vts_vts2tdt_metabuilder_hpp_included_
 
+#include "utility/gzipper.hpp"
+
 #include "vts-libs/storage/support.hpp"
 #include "vts-libs/vts/tileset/driver.hpp"
 #include "vts-libs/vts/tileset/delivery.hpp"
@@ -45,7 +47,7 @@ vtslibs::storage::IStream::pointer serialize(const threedtiles::Tileset &ts
                                              , std::time_t lastModified)
 {
     auto is(std::make_shared<vs::StringIStream>(type, path, lastModified));
-    threedtiles::write(is->sink(), ts);
+    threedtiles::write(utility::Gzipper(is->sink()), ts);
     is->updateSize();
     return is;
 }
@@ -86,7 +88,7 @@ public:
     {
         return sink.content
             (serialize(ts, location.path, fileType, lastModified)
-             , fileClass);
+             , fileClass, true);
     }
 
     void send(Sink &sink, const Location &location

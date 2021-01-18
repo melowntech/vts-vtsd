@@ -44,11 +44,6 @@ namespace {
 
 using FT = vts::TileIndex::Flag;
 
-namespace constants {
-    const std::string JsonExt("json");
-    const std::string B3dmExt("b3dm");
-}
-
 math::Extents3 regionExtents(const vts::NodeInfo &ni
                              , const vts::GeomExtents::ZRange &z
                              , const Convertors &convertors)

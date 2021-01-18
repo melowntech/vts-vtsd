@@ -24,6 +24,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "utility/gzipper.hpp"
+
 #include "vts-libs/vts/tileset/driver.hpp"
 
 #include "3dtiles/3dtiles.hpp"
@@ -283,12 +285,12 @@ void generateMesh(Sink &sink, const Location &location
                         (vs::TileFile::mesh, location.path
                          , is->stat().lastModified));
 
-                tdt::saveTile(io->sink(), location.path
+                tdt::saveTile(utility::Gzipper(io->sink()), location.path
                               , tileId, vts::ConstSubMeshRange(mesh.submeshes)
                               , ImageUriSource(tileId, mesh));
                 io->updateSize();
 
-                return sink.content(io, FileClass::data);
+                return sink.content(io, FileClass::data, true);
             } catch (...) {
                 (*errorHandler)();
             }
