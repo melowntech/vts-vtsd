@@ -79,7 +79,6 @@ var tileset = new Cesium.Cesium3DTileset({
 
 tileset.readyPromise.then(function(tileset) {
     viewer.scene.primitives.add(tileset);
-    console.log("bounding sphere: ", tileset.boundingSphere);
     // look at the tileset
     var distance = tileset.boundingSphere.radius * 0.5;
     viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(-0.3, -0.8, distance));
