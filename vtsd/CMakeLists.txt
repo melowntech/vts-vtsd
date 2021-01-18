@@ -48,7 +48,8 @@ add_subdirectory(src/slpk)
 
 # vts libraries
 if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
-  buildsys_nobuild_target(vts-libs)
+  #  ???
+  #  buildsys_nobuild_target(vts-libs)
 endif()
 
 add_subdirectory(src/vts-libs)
