@@ -143,8 +143,6 @@ void loadMetaTile(const vts::TileId &tileId, const vts::Delivery &delivery
 
 void MetaBuilder::load(int depth)
 {
-    LOG(info4) << "depth: " << depth;
-
     const auto mbo(referenceFrame_.metaBinaryOrder);
     if (depth < 0) { depth = mbo; }
 
