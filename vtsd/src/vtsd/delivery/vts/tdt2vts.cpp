@@ -170,7 +170,7 @@ void finishTileset(Sink &sink, const Location &location
     auto &delivery(mb.delivery());
 
     tdt::Tileset ts;
-    if (!mb.run(ts)) {
+    if (!mb.run(ts, 0)) {
         return sink.error(utility::makeError<NotFound>
                           ("No metanodes in this subtree."));
     }
@@ -192,7 +192,7 @@ void generateTileset(Sink &sink, const Location &location
 {
     if (!delivery->async()) {
         MetaBuilder mb(delivery, referenceFrame, convertors, {}, false);
-        mb.load(0);
+        mb.load(referenceFrame.division.rootLodRange.max);
         return finishTileset(sink, location, config, mb);
     }
 
@@ -207,7 +207,7 @@ void generateTileset(Sink &sink, const Location &location
         } catch (...) {
             (*errorHandler)();
         }
-    }, 0);
+    }, referenceFrame.division.rootLodRange.max);
 }
 
 /** Image source.

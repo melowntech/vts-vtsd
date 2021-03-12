@@ -2,7 +2,7 @@
  * Copyright (c) 2021 Melown Technologies SE
  *
  * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
+ * modification, are permitted provided that the conditions are met:
  *
  * *  Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
@@ -26,6 +26,8 @@
 
 #include "3dtiles/3dtiles.hpp"
 
+#include "vts-libs/vts/io.hpp"
+
 #include "../../driver.hpp"
 
 #include "support.hpp"
@@ -44,20 +46,13 @@ namespace {
 
 using FT = vts::TileIndex::Flag;
 
-math::Extents3 regionExtents(const vts::NodeInfo &ni
-                             , const vts::GeomExtents::ZRange &z
-                             , const Convertors &convertors)
+math::Extents3 asRegionExtents(const vts::CsConvertor &conv
+                               , const math::Extents3 &e)
 {
-    const auto &conv(convertors(ni.srs()));
-
-    // make 3D extents from SDS tile extents and geom extents Z-range
-    auto e(math::extents3(ni.extents()));
-    e.ll(2) = z.min;
-    e.ur(2) = z.max;
-
     math::Extents3 region(math::InvalidExtents{});
 
     // conver all eight corners
+    // TODO: use more vertices
     for (const auto &v : math::vertices(e)) {
         math::update(region, conv(v));
     }
@@ -65,12 +60,39 @@ math::Extents3 regionExtents(const vts::NodeInfo &ni
     return region;
 }
 
+math::Extents3 regionExtents(const vts::NodeInfo &ni
+                             , const vts::GeomExtents::ZRange &z
+                             , const Convertors &convertors)
+{
+    // make 3D extents from SDS tile extents and geom extents Z-range
+    auto e(math::extents3(ni.extents()));
+    e.ll(2) = z.min;
+    e.ur(2) = z.max;
+
+    return asRegionExtents(convertors(ni.srs()), e);
+}
+
+math::Extents3 regionExtents(const vts::NodeInfo &ni
+                             , const vts::GeomExtents &ge
+                             , const Convertors &convertors)
+{
+    // make 3D extents from SDS tile extents and geom extents Z-range
+    const math::Extents3 e(ge.extents.ll(0), ge.extents.ll(1), ge.z.min
+                           , ge.extents.ur(0), ge.extents.ur(1), ge.z.max);
+
+    return asRegionExtents(convertors(ni.srs()), e);
+}
+
 tdt::Region region(const vts::MetaNode &node
                    , const vts::NodeInfo &ni
                    , const Convertors &convertors)
 {
     tdt::Region region;
-    region.extents = regionExtents(ni, node.geomExtents.z, convertors);
+    if (vts::complete(node.geomExtents)) {
+        region.extents = regionExtents(ni, node.geomExtents, convertors);
+    } else {
+        region.extents = regionExtents(ni, node.geomExtents.z, convertors);
+    }
     return region;
 }
 
@@ -121,6 +143,8 @@ void loadMetaTile(const vts::TileId &tileId, const vts::Delivery &delivery
 
 void MetaBuilder::load(int depth)
 {
+    LOG(info4) << "depth: " << depth;
+
     const auto mbo(referenceFrame_.metaBinaryOrder);
     if (depth < 0) { depth = mbo; }
 
@@ -177,16 +201,35 @@ void MetaBuilder::loadNext(pointer self
 
 namespace {
 
+inline bool extentsSource(const vts::MetaNode &node) {
+    return node.real() || vts::complete(node.geomExtents);
+}
+
+inline bool hasFullExtents(const vts::MetaNode &node) {
+    return vts::complete(node.geomExtents);
+}
+
 class Helper {
 public:
-    Helper(const vts::TileIndex &ti, bool optimizeBottom)
+    Helper(const vts::TileIndex &ti, bool optimizeBottom
+           , int clipDepth = -1)
         : ti_(ti), optimizeBottom_(optimizeBottom)
+        , clipDepth_(clipDepth)
     {}
 
     tdt::Tile::pointer
     traverse(const Convertors &convertors, const vts::NodeInfo &ni
+             , vtslibs::vts::MetaTile::list metas)
+    {
+        return traverse(convertors, ni, metas.begin(), metas.end(), 0);
+    }
+
+private:
+    tdt::Tile::pointer
+    traverse(const Convertors &convertors, const vts::NodeInfo &ni
              , vts::MetaTile::list::const_iterator imeta
-             , const vts::MetaTile::list::const_iterator &emeta)
+             , const vts::MetaTile::list::const_iterator &emeta
+             , int depth)
     {
         const vts::TileId tileId(ni.nodeId());
 
@@ -205,18 +248,19 @@ public:
 
         tdt::Region br;
 
-        if (node->real()) {
-            br = region(*node, ni, convertors);
-        }
+        // first, use only full geometric extents
+        const auto hfe(hasFullExtents(*node));
+        if (hfe) { br = region(*node, ni, convertors); }
 
         // move to next metatile
         std::advance(imeta, 1);
 
         const auto bottom(imeta == emeta);
         const auto hasChildren(node->childFlags());
+        const auto clip(depth == clipDepth_);
 
         // should we use a link to other meta pyramid?
-        bool link(bottom && hasChildren);
+        bool link((bottom && hasChildren) || clip);
         if (bottom && !optimizeBottom_ && !hasChildren) {
             // special case if we should not optimize meta tree
             link = true;
@@ -248,25 +292,26 @@ public:
         if (!bottom) {
             for (const auto &child : vts::children(*node, tileId)) {
                 tile->children.push_back
-                    (traverse(convertors, ni.child(child), imeta, emeta));
+                    (traverse(convertors, ni.child(child), imeta, emeta
+                              , depth + 1));
 
-                if (!node->real()) {
-                    // accumulate children bounding volume's in non-real
-                    // tiles
+                if (!hfe) {
+                    // accumulate children bounding volumes if this tile does
+                    // not have full extents
                     const auto &ctile(*tile->children.back());
                     if (auto *creg = boost::get<tdt::Region>
                         (&ctile.boundingVolume))
-                        {
-                            math::update(br.extents, creg->extents);
-                        }
+                    {
+                        math::update(br.extents, creg->extents);
+                    }
                 }
             }
-        } else if (!node->real()) {
-            /* non-real tile at the bottom of the tree, we need to find real
-             * nodes to guess much tighter geometry than the one we currenty
-             * have available here
+        } else if (!hfe && !node->real()) {
+            /* bottom tile with neither full extents nor any content, we need to
+             * find real nodes to guess much tighter geometry than the one we
+             * currenty have available here
              *
-             * use this tile's geometic extents Z-range since we are goint
+             * use this tile's geometic extents Z-range since we are going
              * to traverse tile index
              */
 
@@ -278,12 +323,15 @@ public:
         }
 
         if (!valid(br.extents)) {
-            // last resort: use this node's geometric extents
+            // last resort: use this node's (incomplete) geometric extents
             br = region(*node, ni, convertors);
         }
 
         // set bounding volume
         tile->boundingVolume = br;
+
+        // clip here
+        if (clip) { tile->children.clear(); }
 
         return tile;
     };
@@ -323,14 +371,14 @@ public:
         return e;
     }
 
-private:
     const vts::TileIndex &ti_;
     bool optimizeBottom_;
+    int clipDepth_;
 };
 
 } // namespace
 
-bool MetaBuilder::run(tdt::Tileset &ts)
+bool MetaBuilder::run(tdt::Tileset &ts, int clipDepth)
 {
     if (metas_.empty()) { return false; }
 
@@ -338,10 +386,10 @@ bool MetaBuilder::run(tdt::Tileset &ts)
     ts.asset.tilesetVersion
         = utility::format("%s", delivery_->properties().revision);
 
-    Helper helper(ti_.tileIndex, optimizeBottom_);
+    Helper helper(ti_.tileIndex, optimizeBottom_, clipDepth);
     ts.root = helper.traverse(ptc_->get()
                               , vts::NodeInfo(referenceFrame_, rootId_)
-                              , metas_.begin(), metas_.end());
+                              , metas_);
 
     // copy geometric error?
     ts.geometricError = ts.root->geometricError;

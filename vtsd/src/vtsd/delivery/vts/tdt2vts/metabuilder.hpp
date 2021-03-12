@@ -71,15 +71,31 @@ public:
         , optimizeBottom_(optimizeBottom)
     {}
 
+    /** Load metatiles to given depth. Negative depth is replace by metatile
+     *  binary order.
+     */
     void load(int depth = -1);
 
+    /** Ansync loader.
+     */
     static void load_async(const pointer &self
                            , const ErrorHandler::pointer &errorHandler
                            , const CompletionHandler &cb
                            , int depth = -1);
 
-    bool run(threedtiles::Tileset &ts);
+    /** Generate 3DTiles tileset pyramid from loaded metatiles.
+     *
+     *  Generated pyramid can be clipped at given depth. If clipDepth > depth or
+     *  < 0 then clipDepth is internally set to depth, where depth is depth of
+     *  loaded metatile subtree.
+     *
+     * \param ts tileset to fill-in
+     * \param clipDepth clip pyramid at given depth
+     */
+    bool run(threedtiles::Tileset &ts, int clipDepth = -1);
 
+    /** Send tileset to peer.
+     */
     template <typename FileType>
     void send(Sink &sink, const Location &location
               , const threedtiles::Tileset &ts
@@ -91,6 +107,8 @@ public:
              , fileClass, true);
     }
 
+    /** Send tileset to peer.
+     */
     void send(Sink &sink, const Location &location
               , const threedtiles::Tileset &ts)
     {
