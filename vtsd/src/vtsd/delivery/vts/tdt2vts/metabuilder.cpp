@@ -46,54 +46,52 @@ namespace {
 
 using FT = vts::TileIndex::Flag;
 
-math::Extents3 asRegionExtents(const vts::CsConvertor &conv
+math::Extents3 asBvExtents(const vts::CsConvertor &conv
                                , const math::Extents3 &e)
 {
-    math::Extents3 region(math::InvalidExtents{});
+    math::Extents3 extents(math::InvalidExtents{});
 
     // conver all eight corners
     // TODO: use more vertices
     for (const auto &v : math::vertices(e)) {
-        math::update(region, conv(v));
+        math::update(extents, conv(v));
     }
 
-    return region;
+    return extents;
 }
 
-math::Extents3 regionExtents(const vts::NodeInfo &ni
-                             , const vts::GeomExtents::ZRange &z
-                             , const Convertors &convertors)
+math::Extents3 bvExtents(const vts::NodeInfo &ni
+                         , const vts::GeomExtents::ZRange &z
+                         , const Convertors &convertors)
 {
     // make 3D extents from SDS tile extents and geom extents Z-range
     auto e(math::extents3(ni.extents()));
     e.ll(2) = z.min;
     e.ur(2) = z.max;
 
-    return asRegionExtents(convertors(ni.srs()), e);
+    return asBvExtents(convertors(ni.srs()), e);
 }
 
-math::Extents3 regionExtents(const vts::NodeInfo &ni
-                             , const vts::GeomExtents &ge
-                             , const Convertors &convertors)
+math::Extents3 bvExtents(const vts::NodeInfo &ni
+                         , const vts::GeomExtents &ge
+                         , const Convertors &convertors)
 {
     // make 3D extents from SDS tile extents and geom extents Z-range
     const math::Extents3 e(ge.extents.ll(0), ge.extents.ll(1), ge.z.min
                            , ge.extents.ur(0), ge.extents.ur(1), ge.z.max);
 
-    return asRegionExtents(convertors(ni.srs()), e);
+    return asBvExtents(convertors(ni.srs()), e);
 }
 
-tdt::Region region(const vts::MetaNode &node
-                   , const vts::NodeInfo &ni
-                   , const Convertors &convertors)
+math::Extents3 bvExtents(const vts::GeomExtents &ge
+                        , const vts::NodeInfo &ni
+                        , const Convertors &convertors)
 {
-    tdt::Region region;
-    if (vts::complete(node.geomExtents)) {
-        region.extents = regionExtents(ni, node.geomExtents, convertors);
-    } else {
-        region.extents = regionExtents(ni, node.geomExtents.z, convertors);
+    if (vts::complete(ge)) {
+        return bvExtents(ni, ge, convertors);
     }
-    return region;
+
+    return bvExtents(ni, ge.z, convertors);
 }
 
 vts::MetaTile loadMetaTile(const vts::TileId &tileId
@@ -207,6 +205,106 @@ inline bool hasFullExtents(const vts::MetaNode &node) {
     return vts::complete(node.geomExtents);
 }
 
+class BoundingVolumeBuilder {
+public:
+    BoundingVolumeBuilder(const Convertors &convertors)
+        : convertors_(convertors)
+    {}
+
+    virtual ~BoundingVolumeBuilder() {}
+
+    virtual tdt::BoundingVolume volume() const = 0;
+    virtual bool valid() const = 0;
+
+    virtual void update(const vts::NodeInfo &ni
+                        , const vts::GeomExtents &ge) = 0;
+    virtual void update(const tdt::BoundingVolume &bv) = 0;
+
+
+    static std::unique_ptr<BoundingVolumeBuilder>
+    create(const Convertors &convertors);
+
+protected:
+    const Convertors &convertors_;
+};
+
+class RegionBuilder : public BoundingVolumeBuilder {
+public:
+    RegionBuilder(const Convertors &convertors)
+        : BoundingVolumeBuilder(convertors)
+    {}
+
+    tdt::BoundingVolume volume() const override { return region_; }
+
+    virtual bool valid() const override { return math::valid(region_.extents); }
+
+    void update(const vts::NodeInfo &ni, const vts::GeomExtents &ge) override {
+        math::update(region_.extents, bvExtents(ge, ni, convertors_));
+    }
+
+    void update(const tdt::BoundingVolume &bv) override {
+        if (auto *reg = boost::get<tdt::Region>(&bv)) {
+            math::update(region_.extents, reg->extents);
+        }
+    }
+
+private:
+    tdt::Region region_;
+};
+
+/** NB: computes axis-aligned extents
+ */
+class BoxBuilder : public BoundingVolumeBuilder {
+public:
+    BoxBuilder(const Convertors &convertors)
+        : BoundingVolumeBuilder(convertors)
+        , extents_(math::InvalidExtents{})
+    {}
+
+    tdt::BoundingVolume volume() const override {
+        tdt::Box box;
+        box.center = math::center(extents_);
+        const auto s(math::size(extents_));
+        box.x(0) = s.width / 2;
+        box.y(1) = s.height / 2;
+        box.y(2) = s.depth / 2;
+        return box;
+    }
+
+    virtual bool valid() const override { return math::valid(extents_); }
+
+    void update(const vts::NodeInfo &ni, const vts::GeomExtents &ge) override {
+        math::update(extents_, bvExtents(ge, ni, convertors_));
+    }
+
+    void update(const tdt::BoundingVolume &bv) override {
+        if (auto *box = boost::get<tdt::Box>(&bv)) {
+            math::update(extents_, math::Point3(box->center + box->x));
+            math::update(extents_, math::Point3(box->center + box->y));
+            math::update(extents_, math::Point3(box->center + box->z));
+
+            math::update(extents_, math::Point3(box->center - box->x));
+            math::update(extents_, math::Point3(box->center - box->y));
+            math::update(extents_, math::Point3(box->center - box->z));
+        }
+    }
+
+private:
+    math::Extents3 extents_;
+};
+
+std::unique_ptr<BoundingVolumeBuilder>
+BoundingVolumeBuilder::create(const Convertors &convertors)
+{
+    switch (convertors.boundingVolume()) {
+    case Convertors::BoundingVolume::region:
+        return std::make_unique<RegionBuilder>(convertors);
+    case Convertors::BoundingVolume::box:
+        return std::make_unique<BoxBuilder>(convertors);
+    }
+    throw; // never reached
+}
+
 class Helper {
 public:
     Helper(const vts::TileIndex &ti, bool optimizeBottom
@@ -244,11 +342,11 @@ private:
 
         tile->geometricError = 1e6; // how can I know?
 
-        tdt::Region br;
+        auto bv(BoundingVolumeBuilder::create(convertors));
 
         // first, use only full geometric extents
         const auto hfe(hasFullExtents(*node));
-        if (hfe) { br = region(*node, ni, convertors); }
+        if (hfe) { bv->update(ni, node->geomExtents); }
 
         // move to next metatile
         std::advance(imeta, 1);
@@ -297,11 +395,7 @@ private:
                     // accumulate children bounding volumes if this tile does
                     // not have full extents
                     const auto &ctile(*tile->children.back());
-                    if (auto *creg = boost::get<tdt::Region>
-                        (&ctile.boundingVolume))
-                    {
-                        math::update(br.extents, creg->extents);
-                    }
+                    bv->update(ctile.boundingVolume);
                 }
             }
         } else if (!hfe && !node->real()) {
@@ -314,19 +408,17 @@ private:
              */
 
             // TODO: generate resolution as well
-            const auto extents(measure(convertors, ni, node->geomExtents.z));
-
-            // use subtree extents
-            br.extents = extents;
+            // NB: geomExtents lack horizontal component!
+            measure(*bv, ni, node->geomExtents);
         }
 
-        if (!valid(br.extents)) {
+        if (!bv->valid()) {
             // last resort: use this node's (incomplete) geometric extents
-            br = region(*node, ni, convertors);
+            bv->update(ni, node->geomExtents);
         }
 
         // set bounding volume
-        tile->boundingVolume = br;
+        tile->boundingVolume = bv->volume();
 
         // clip here
         if (clip) { tile->children.clear(); }
@@ -334,39 +426,33 @@ private:
         return tile;
     };
 
-    math::Extents3
-    measure(const Convertors &convertors
-            , const vts::NodeInfo &ni
-            , const vts::GeomExtents::ZRange &z)
+    void measure(BoundingVolumeBuilder &bv, const vts::NodeInfo &ni
+                 , const vts::GeomExtents &ge)
     {
         // TODO: limit depth?
 
-        if (!ni.valid()) { return math::Extents3(math::InvalidExtents{}); }
+        if (!ni.valid()) { return; }
 
         const vts::TileId tileId(ni.nodeId());
 
         const auto flags(ti_.get(tileId));
 
-        // real tile -> use extents
+        // real tile -> use full node gemetric extents
         if (FT::isReal(flags)) {
-            return regionExtents(ni, z, convertors);
+            bv.update(ni, ge);
+            return;
         }
 
         math::Extents3 e(math::InvalidExtents{});
 
         // check if there are any children, i.e. subtree starting at this tile
         // ID must be valid in next lod's tree (yes, quadtree magic)
-        if (!ti_.validSubtree(tileId.lod + 1, tileId)) { return e; }
+        if (!ti_.validSubtree(tileId.lod + 1, tileId)) { return; }
 
         // let's traverse children
         for (const auto &child : vts::children(tileId)) {
-            auto ce(measure(convertors, ni.child(child), z));
-            if (math::valid(ce)) {
-                math::update(e, ce);
-            }
+            measure(bv, ni.child(child), ge);
         }
-
-        return e;
     }
 
     const vts::TileIndex &ti_;

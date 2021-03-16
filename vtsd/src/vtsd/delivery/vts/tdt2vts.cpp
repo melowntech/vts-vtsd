@@ -276,7 +276,9 @@ void generateMesh(Sink &sink, const Location &location
                 const auto &fromPhys(ptc->get()());
                 if (fromPhys) {
                     for (auto &sm : mesh) {
-                        for (auto &v : sm.vertices) { v = fromPhys(v); }
+                        for (auto &v : sm.vertices) {
+                            v = fromPhys(v);
+                        }
                     }
                 }
 
