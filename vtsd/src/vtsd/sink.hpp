@@ -202,6 +202,8 @@ private:
     const LocationConfig &locationConfig_;
 };
 
+http::Header::list combine(const http::Header::list &headers1
+                           , const http::Header::list &headers2);
 // inlines
 
 template <typename T>
@@ -212,19 +214,28 @@ inline void Sink::error(const T &exc)
 
 inline void Sink::error() { error(std::current_exception()); }
 
+template <typename T>
+const T* constOptional(const T &value) { return &value; }
+
 inline void Sink::content(const std::string &data, const FileInfo &stat) {
-    sink_->content(data, update(stat), &stat.headers);
+    sink_->content(data, update(stat)
+                   , constOptional(combine(stat.headers
+                                           , locationConfig_.httpHeaders)));
 }
 
 template <typename T>
 inline void Sink::content(const std::vector<T> &data, const FileInfo &stat) {
-    sink_->content(data, update(stat), &stat.headers);
+    sink_->content(data, update(stat)
+                   , constOptional(combine(stat.headers
+                                           , locationConfig_.httpHeaders)));
 }
 
 inline void Sink::content(const void *data, std::size_t size
                           , const FileInfo &stat, bool needCopy)
 {
-    sink_->content(data, size, update(stat), needCopy, &stat.headers);
+    sink_->content(data, size, update(stat), needCopy
+                   , constOptional(combine(stat.headers
+                                           , locationConfig_.httpHeaders)));
 }
 
 #endif // mapproxy_sink_hpp_included_

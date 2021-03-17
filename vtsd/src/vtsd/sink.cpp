@@ -361,3 +361,11 @@ void Sink::redirect(const std::string &url, utility::HttpCode code
         (url, code
          , update(Sink::FileInfo().setFileClass(fileClass)).cacheControl);
 }
+
+http::Header::list combine(const http::Header::list &headers1
+                           , const http::Header::list &headers2)
+{
+    http::Header::list out(headers1);
+    out.insert(out.end(), headers2.begin(), headers2.end());
+    return out;
+}
