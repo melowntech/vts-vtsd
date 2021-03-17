@@ -82,15 +82,28 @@ Sink::FileInfo update(const Sink::FileInfo &inStat
     return stat;
 }
 
+namespace {
+
+const http::Header::list emptyHeaders;
+
+const http::Header::list& fromOpt(const http::Header::list *headers) {
+    if (headers) { return *headers; }
+    return emptyHeaders;
+}
+
+} // namespace
+
 class IStreamDataSource : public http::ServerSink::DataSource {
 public:
     IStreamDataSource(const vs::IStream::pointer &stream
                       , FileClass fileClass
                       , const FileClassSettings *fileClassSettings
-                      , bool gzipped = false)
+                      , bool gzipped = false
+                      , const http::Header::list *headers = nullptr)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
                              , cacheControl(fileClass, fileClassSettings)))
+        , headers_(fromOpt(headers))
     {
         // do not fail on eof
         stream->get().exceptions(std::ios::badbit);
@@ -131,10 +144,12 @@ public:
                          , FileClass fileClass
                          , const FileClassSettings *fileClassSettings
                          , std::size_t offset, std::size_t size
-                         , bool gzipped)
+                         , bool gzipped
+                         , const http::Header::list *headers = nullptr)
         : stream_(stream), stat_(stream->stat())
         , fs_(Sink::FileInfo(stat_.contentType, stat_.lastModified
                              , cacheControl(fileClass, fileClassSettings)))
+        , headers_(fromOpt(headers))
         , offset_(offset), end_(offset + size)
     {
         // sanity check
@@ -185,10 +200,12 @@ public:
     RoArchiveDataSource(roarchive::IStream::pointer &&is
                         , const std::string &contentType, FileClass fileClass
                         , const FileClassSettings *fileClassSettings
-                        , const std::string &trasferEncoding)
+                        , const std::string &trasferEncoding
+                        , const http::Header::list *headers = nullptr)
         : http::SinkBase::DataSource(true), is_(std::move(is))
         , size_(is_->size() ? *is_->size() : -1)
         , seekable_(is_->seekable()), off_()
+        , headers_(fromOpt(headers))
     {
         fi_.lastModified = is_->timestamp();
         fi_.contentType = contentType;
@@ -254,7 +271,7 @@ void Sink::content(vs::IStream::pointer &&stream, FileClass fileClass
     sink_->content(std::make_shared<IStreamDataSource>
                    (std::move(stream), fileClass
                     , &locationConfig_.fileClassSettings
-                    , gzipped));
+                    , gzipped, &locationConfig_.httpHeaders));
 }
 
 void Sink::content(vs::IStream::pointer &&stream
@@ -264,7 +281,7 @@ void Sink::content(vs::IStream::pointer &&stream
     sink_->content(std::make_shared<SubIStreamDataSource>
                    (std::move(stream), fileClass
                     , &locationConfig_.fileClassSettings
-                    , offset, size, gzipped));
+                    , offset, size, gzipped, &locationConfig_.httpHeaders));
 }
 
 void Sink::content(roarchive::IStream::pointer &&stream
@@ -274,7 +291,7 @@ void Sink::content(roarchive::IStream::pointer &&stream
     sink_->content(std::make_shared<RoArchiveDataSource>
                    (std::move(stream), contentType
                     , fileClass, &locationConfig_.fileClassSettings
-                    , trasferEncoding));
+                    , trasferEncoding, &locationConfig_.httpHeaders));
 }
 
 void Sink::content(const vs::SupportFile &data)
@@ -344,4 +361,3 @@ void Sink::redirect(const std::string &url, utility::HttpCode code
         (url, code
          , update(Sink::FileInfo().setFileClass(fileClass)).cacheControl);
 }
-

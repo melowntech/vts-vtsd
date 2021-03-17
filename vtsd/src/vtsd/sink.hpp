@@ -88,7 +88,8 @@ public:
 
     Sink(const http::ServerSink::pointer &sink
          , const LocationConfig &locationConfig)
-        : sink_(sink), locationConfig_(locationConfig) {}
+        : sink_(sink), locationConfig_(locationConfig)
+    {}
 
     /** Sends content to client.
      * \param data data top send
@@ -160,7 +161,7 @@ public:
     /** Generates listing.
      */
     void listing(const Listing &list) {
-        sink_->listing(list);
+        sink_->listing(list, {}, {}, &locationConfig_.httpHeaders);
     }
 
     /** Generate listing from given path.
