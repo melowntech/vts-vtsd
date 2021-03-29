@@ -305,6 +305,23 @@ BoundingVolumeBuilder::create(const Convertors &convertors)
     throw; // never reached
 }
 
+
+double geometricError(const vts::MetaNode &node)
+{
+    if (node.real() || node.applyTexelSize()) {
+        /**
+         * NB: we divide geometric error by 2 because we should use
+         * geometric error from children
+         */
+
+        // make factor configurable
+        return 16.0 * node.texelSize / 2.0;
+    }
+
+    // fallback
+    return 1e6;
+}
+
 class Helper {
 public:
     Helper(const vts::TileIndex &ti, bool optimizeBottom
@@ -340,7 +357,9 @@ private:
         // OK, we have tile
         auto tile(std::make_unique<tdt::Tile>());
 
-        tile->geometricError = 1e6; // how can I know?
+        // compute geometric error
+        // TODO: make error factor configurable
+        tile->geometricError = geometricError(*node);
 
         auto bv(BoundingVolumeBuilder::create(convertors));
 
@@ -363,13 +382,6 @@ private:
         }
 
         if (node->real()) {
-            /* TODO: make error factor configurable
-             *
-             * NB: we divide geometric error by 2 because we should use
-             * geometric error from children
-             */
-            tile->geometricError = 16.0 * node->texelSize / 2.0;
-
             // real content
             if (!link) {
                 tile->content.emplace();
