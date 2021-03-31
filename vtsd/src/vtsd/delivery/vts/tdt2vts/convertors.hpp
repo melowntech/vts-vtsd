@@ -40,15 +40,22 @@ using CsMap = std::map<std::string, vtslibs::vts::CsConvertor>;
 
 class Convertors {
 public:
-    Convertors(const CsMap *csMap) : csMap_(csMap) {}
+    enum class BoundingVolume { region, box };
+
+    Convertors(const CsMap *csMap, BoundingVolume boundingVolume)
+        : csMap_(csMap), boundingVolume_(boundingVolume)
+    {}
 
     const vtslibs::vts::CsConvertor& get(const std::string &srsId = {}) const;
 
     const vtslibs::vts::CsConvertor& operator()(const std::string &srsId = {})
         const { return get(srsId); }
 
+    BoundingVolume boundingVolume() const { return boundingVolume_; }
+
 private:
     const CsMap *csMap_;
+    BoundingVolume boundingVolume_;
 };
 
 /** Holds per-thread convertors for converting VTS data to 3DTiles.
@@ -73,12 +80,18 @@ private:
 
     /** 3D Tiles world. May be empty when model.physicalSrs is already
      *  geocentric system.
+     *
+     *  TODO: optimize if known system
      */
     geo::SrsDefinition world_;
 
-    /** World's lon/lat system in radians.
+    /** Bounding volume SRS. TODO: optimize if known system
      */
-    geo::SrsDefinition region_;
+    geo::SrsDefinition boundingVolumeSrs_;
+
+    /** What type of bounding volume we can produce.
+     */
+    Convertors::BoundingVolume boundingVolume_;
 
     /** Cached convertors.
      */

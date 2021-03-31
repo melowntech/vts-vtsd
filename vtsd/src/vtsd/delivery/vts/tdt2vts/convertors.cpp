@@ -35,11 +35,20 @@ namespace vr = vtslibs::registry;
 
 namespace vts2tdt {
 
+namespace {
+
+/** WGS84 in radians
+ */
+const auto Wgs84Rad(geo::setAngularUnit
+                    (geo::SrsDefinition(4326), geo::AngularUnit::radian));
+
+} // namespace
+
 PerThreadConvertors::PerThreadConvertors(const vr::ReferenceFrame &rf)
     : physical_(rf.model.physicalSrs)
+    , boundingVolume_(Convertors::BoundingVolume::box)
 {
-    auto physical(vr::system.srs.get(rf.model.physicalSrs));
-    vr::Srs region;
+    const auto physical(vr::system.srs.get(rf.model.physicalSrs));
 
     // we need to have physical->region system
     srsSet_.insert(rf.model.physicalSrs);
@@ -47,23 +56,45 @@ PerThreadConvertors::PerThreadConvertors(const vr::ReferenceFrame &rf)
         const auto &node(item.second);
         if (!node.real()) { continue; }
         srsSet_.insert(node.srs);
-        if (region.srsDef.srs.empty()) {
-            region = vr::system.srs.get(node.srs);
+    }
+
+    const auto *body = vr::system.bodies.get(rf.body);
+    if (body && body->srs) {
+        // this applies only to Earth (or any body that uses WGS84)
+        if (body->srs->flags.count("wgs84")) {
+            boundingVolumeSrs_ = Wgs84Rad;
+            boundingVolume_ = Convertors::BoundingVolume::region;
+        }
+
+        // this RF is mapped to a celestial body with valid SRS definition
+        if (body->srs->geocentric != physical_) {
+            // we need to convert meshes when physical system is different from
+            // world's geocentric (cartesian) system
+            world_ = vr::system.srs.get(body->srs->geocentric).srsDef;
+        }
+    } else {
+        // generic body, convert meshes if world is not cartesian system
+        if (physical.type != vr::Srs::Type::cartesian) {
+            world_ = geo::geocentric(physical.srsDef);
         }
     }
 
-    if (physical.type != vr::Srs::Type::cartesian) {
-        world_ = geo::geocentric(physical.srsDef);
+    if (boundingVolumeSrs_.empty()) {
+        // we did not set bounding volume properly, use world system
+        if (world_.empty()) {
+            // we use physical system as world
+            boundingVolumeSrs_ = physical.srsDef;
+        } else {
+            // we have special world system
+            boundingVolumeSrs_ = world_;
+        }
     }
-
-    region_ = geo::setAngularUnit(geo::geographic(region.srsDef)
-                                  , geo::AngularUnit::radian);
 }
 
 Convertors PerThreadConvertors::get()
     const
 {
-    if (auto csMap = csMap_.get()) { return csMap; }
+    if (auto csMap = csMap_.get()) { return { csMap, boundingVolume_ }; }
 
     // new thread -> initialize mapping
     auto csMap(new CsMap());
@@ -78,12 +109,14 @@ Convertors PerThreadConvertors::get()
             (CsMap::value_type({}, vts::CsConvertor(physical_, world_)));
     }
 
+    // we can use Region bounding volumes
     for (const auto &srs : srsSet_) {
         csMap->insert
-            (CsMap::value_type(srs, vts::CsConvertor(srs, region_)));
+            (CsMap::value_type
+             (srs, vts::CsConvertor(srs, boundingVolumeSrs_)));
     }
 
-    return csMap;
+    return { csMap, boundingVolume_ };
 }
 
 const vts::CsConvertor& Convertors::get(const std::string &srsId) const

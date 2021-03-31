@@ -37,6 +37,8 @@
 #include "vts-libs/storage/support.hpp"
 #include "vts-libs/vts/options.hpp"
 
+#include "http/request.hpp"
+
 #include "fileclass.hpp"
 #include "format.hpp"
 
@@ -72,6 +74,10 @@ struct LocationConfig {
     /** List of allowed proxy names. No proxy is always supported.
      */
     std::set<std::string> allowedProxies;
+
+    /** Extra HTTP headers to send with all responses.
+     */
+    http::Header::list httpHeaders;
 
     /** Config files (e.g. mapConfig.json, freelayer.json, ... for VTS) file
      *  class. Defaults to FileClass::ephemeral. Use wisely!

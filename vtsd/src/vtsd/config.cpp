@@ -76,6 +76,10 @@ void LocationConfig::configuration(po::options_description &od
          , po::value(&configClass)->default_value(configClass)->required()
          , "Config files (e.g. mapConfig.json, freelayer.json, dirs.json, ...)"
          " file class. Allowed values are \"ephemeral\" and \"config\" only.")
+
+        ((prefix + "http-header").c_str()
+         , po::value<std::vector<std::string>>()
+         , "Extra HTTP response headers, key:value")
         ;
 
     // configure variables
@@ -169,6 +173,19 @@ void LocationConfig::configure(const po::variables_map &vars
              , prefix + "configClass"
              , boost::lexical_cast<std::string>(configClass));
     }
+
+    if (vars.count(prefix + "http-header")) {
+        const auto &raw(vars[prefix + "http-header"]
+                        .as<std::vector<std::string>>());
+        for (const auto &item : raw) {
+            const auto colon(item.find(':'));
+            if (colon == std::string::npos) {
+                throw po::invalid_option_value(prefix + "http-header");
+            }
+            httpHeaders.emplace_back(item.substr(0, colon)
+                                     , item.substr(colon + 1));
+        }
+    }
 }
 
 std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
@@ -204,6 +221,11 @@ std::ostream& LocationConfig::dump(std::ostream &os, const std::string &prefix)
             os << prefix << "allowedProxy = "
                << utility::join(allowedProxies, ", ") << "\n";
         }
+    }
+
+    for (const auto &header : httpHeaders) {
+        os << prefix << "HTTP header " << header.name << ": "
+           << header.value << "\n";
     }
 
     os << prefix << "configClass = " << configClass << "\n";
