@@ -241,7 +241,7 @@ private:
             // return custom surface URI
             // may be handled by the renderer in the future
             std::ostringstream os;
-            os << "surface:" << sm.surfaceReference;
+            os << "surface:" << (unsigned int)(sm.surfaceReference);
             return os.str();
         }
 
