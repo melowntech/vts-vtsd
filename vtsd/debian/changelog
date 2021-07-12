@@ -1,3 +1,10 @@
+vts-vtsd (1.34) stable; urgency=medium
+
+  * Properly handling external (per-proxy) URL in storage; works even
+    with remote tilesets.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Mon, 12 Jul 2021 14:36:13 +0200
+
 vts-vtsd (1.33) stable; urgency=medium
 
   * meta/v5 support: using new version of metatiles (complete geom extents)
