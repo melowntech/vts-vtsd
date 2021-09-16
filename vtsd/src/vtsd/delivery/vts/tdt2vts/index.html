@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
 
-  <script src="https://cesiumjs.org/releases/1.75/Build/Cesium/Cesium.js"></script>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.75/Build/Cesium/Cesium.js"></script>
   <style>
-    @import url(https://cesiumjs.org/releases/1.75/Build/Cesium/Widgets/widgets.css);
+    @import url(https://cesium.com/downloads/cesiumjs/releases/1.75/Build/Cesium/Widgets/widgets.css);
     html, body, #cesiumContainer {
         width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
     }
@@ -71,7 +71,6 @@ var viewer = new Cesium.Viewer('cesiumContainer', {
 
 viewer.scene.frameState.creditDisplay.addDefaultCredit(new Cesium.Credit('<a target="_blank" href="https://www.melown.com/">&copy;2020 Melown Technologies SE</a>'));
 
-// UNSET maximumScreenSpaceError if not doing qa for HxDR (defaut 16) for HxDR we use geometric error 8 because RIA interprets it differenly than Cesium
 var tileset = new Cesium.Cesium3DTileset({
     url: "tileset.json", // TODO: add revision
     maximumScreenSpaceError: 8
