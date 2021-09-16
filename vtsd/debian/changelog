@@ -1,3 +1,9 @@
+vts-vtsd (1.35) stable; urgency=medium
+
+  * Fixed NodeInfo validity check when compiled on GDAL3
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Wed, 15 Sep 2021 16:06:41 +0200
+
 vts-vtsd (1.34) stable; urgency=medium
 
   * Properly handling external (per-proxy) URL in storage; works even
