@@ -26,6 +26,8 @@
 
 #include "dbglog/dbglog.hpp"
 
+#include "3dtiles/support.hpp"
+
 #include "../../../error.hpp"
 
 #include "convertors.hpp"
@@ -34,15 +36,6 @@ namespace vts = vtslibs::vts;
 namespace vr = vtslibs::registry;
 
 namespace vts2tdt {
-
-namespace {
-
-/** WGS84 in radians
- */
-const auto Wgs84Rad(geo::setAngularUnit
-                    (geo::SrsDefinition(4326), geo::AngularUnit::radian));
-
-} // namespace
 
 PerThreadConvertors::PerThreadConvertors(const vr::ReferenceFrame &rf)
     : physical_(rf.model.physicalSrs)
@@ -62,7 +55,7 @@ PerThreadConvertors::PerThreadConvertors(const vr::ReferenceFrame &rf)
     if (body && body->srs) {
         // this applies only to Earth (or any body that uses WGS84)
         if (body->srs->flags.count("wgs84")) {
-            boundingVolumeSrs_ = Wgs84Rad;
+            boundingVolumeSrs_ = threedtiles::Wgs84Rad;
             boundingVolume_ = Convertors::BoundingVolume::region;
         }
 
