@@ -1,3 +1,9 @@
+vts-vtsd (1.36) stable; urgency=medium
+
+  * Compiled with libgeo=1.35 (GDAL3 compatibility fixes)
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Mon, 20 Sep 2021 11:01:54 +0200
+
 vts-vtsd (1.35) stable; urgency=medium
 
   * Fixed NodeInfo validity check when compiled on GDAL3
