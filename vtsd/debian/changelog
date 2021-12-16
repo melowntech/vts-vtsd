@@ -1,3 +1,9 @@
+vts-vtsd (1.37) stable; urgency=medium
+
+  * Added support for options in storageview for mesh tiled freelayers
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Thu, 16 Dec 2021 15:21:27 +0100
+
 vts-vtsd (1.36) stable; urgency=medium
 
   * Compiled with libgeo=1.35 (GDAL3 compatibility fixes)
