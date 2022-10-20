@@ -53,20 +53,20 @@ set(vtsd-internals_SOURCES ${vtsd-internals_SOURCES}
 
 add_library(vtsd-internals ${vtsd-internals_SOURCES})
 target_link_libraries(vtsd-internals ${MODULE_LIBRARIES})
-buildsys_target_compile_definitions(vtsd-internals ${MODULE_DEFINITIONS})
+target_compile_definitions(vtsd-internals PRIVATE ${MODULE_DEFINITIONS})
 buildsys_library(vtsd-internals)
 
 # vtsd daemon
 add_executable(vtsd main.cpp)
 target_link_libraries(vtsd vtsd-internals)
-buildsys_target_compile_definitions(vtsd ${MODULE_DEFINITIONS})
+target_compile_definitions(vtsd PRIVATE ${MODULE_DEFINITIONS})
 buildsys_binary(vtsd)
 set_target_version(vtsd ${vts-vtsd_VERSION})
 
 # i3sd daemon
 add_executable(i3sd i3sd.cpp)
 target_link_libraries(i3sd vtsd-internals)
-buildsys_target_compile_definitions(i3sd ${MODULE_DEFINITIONS})
+target_compile_definitions(i3sd PRIVATE ${MODULE_DEFINITIONS})
 buildsys_binary(i3sd)
 set_target_version(i3sd ${vts-vtsd_VERSION})
 

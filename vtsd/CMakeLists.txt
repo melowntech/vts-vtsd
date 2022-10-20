@@ -23,7 +23,7 @@ find_package(OpenCV REQUIRED)
 
 find_package(GDAL REQUIRED)
 include_directories(SYSTEM ${GDAL_INCLUDE_DIR})
-find_package(Proj REQUIRED)
+find_package(PROJ REQUIRED)
 include_directories(${PROJ_INCLUDE_DIR})
 find_package(GeographicLib REQUIRED)
 include_directories(${GEOGRAPHICLIB_INCLUDE_DIR})
@@ -52,6 +52,8 @@ add_subdirectory(src/http)
 
 add_subdirectory(src/roarchive)
 add_subdirectory(src/slpk)
+
+#buildsys_nobuild_target(vts-libs-core:vts0)
 
 # vts libraries
 if(DEFINED BUILDSYS_NOBUILD_TARGET_vts-tools)
