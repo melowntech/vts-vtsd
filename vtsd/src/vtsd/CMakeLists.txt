@@ -34,9 +34,6 @@ set(vtsd-internals_SOURCES
   delivery/vts/tdt2vts/metabuilder.hpp delivery/vts/tdt2vts/metabuilder.cpp
   delivery/vts/po.hpp delivery/vts/tdt2vts/po.hpp
 
-  # VTS0
-  delivery/vts0/driver.hpp delivery/vts0/driver.cpp
-
   # SLPK
   delivery/slpk/driver.hpp delivery/slpk/driver.cpp
   )
