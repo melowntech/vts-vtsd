@@ -54,7 +54,6 @@
 #include "config.hpp"
 #include "delivery/cache.hpp"
 #include "delivery/vts/driver.hpp"
-#include "delivery/vts0/driver.hpp"
 
 #include "daemon.hpp"
 
@@ -176,14 +175,8 @@ DeliveryCache::OpenDriver Vtsd::openDriver()
          {
              LOG(info2) << "Opening driver for \"" << path << "\".";
 
-             // try VTS
-             try {
-                 return openVts(path, openOptions, cache, callback
-                                , proxiesConfigured());
-             } catch (const vs::NoSuchTileSet&) {}
-
-             // finally try VTS0
-             return openVts0(path);
+             return openVts(path, openOptions, cache, callback
+                            , proxiesConfigured());
          });
 }
 
