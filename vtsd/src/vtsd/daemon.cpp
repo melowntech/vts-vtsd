@@ -82,6 +82,7 @@ Daemon::Daemon(const std::string &name, const std::string &version
     , coreThreadCount_(boost::thread::hardware_concurrency())
     , defaultConfig_(defaultConfig)
     , proxiesConfigured_(false)
+    , serverName_(utility::format("%s/%s", name, version))
 {
     openOptions_
         .ioRetries(1)
@@ -102,6 +103,9 @@ void Daemon::configurationImpl(po::options_description &cmdline
         ("core.threadCount", po::value(&coreThreadCount_)
          ->default_value(coreThreadCount_)->required()
          , "Number of server core threads.")
+
+        ("serverName", po::value(&serverName_)->default_value(serverName_)
+         , "Override server name.")
         ;
 
     if (httpClientThreadCount_) {
@@ -266,9 +270,7 @@ service::Service::Cleanup Daemon::start()
         (coreThreadCount_, openOptions_, openDriver());
 
     http_.emplace();
-    http_->serverHeader(utility::format
-                        ("%s/%s", utility::buildsys::TargetName
-                         , utility::buildsys::TargetVersion));
+    http_->serverHeader(serverName_);
     http_->listen(httpListen_, std::ref(*this));
     http_->startServer(httpThreadCount_);
 

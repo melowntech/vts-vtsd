@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.107.1/Build/Cesium/Cesium.js"></script>
+  <style>
+    @import url(https://cesium.com/downloads/cesiumjs/releases/1.94/Build/Cesium/Widgets/widgets.css);
+    html, body, #cesiumContainer {
+        width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <script type="module">
+
+// disable Cesium ion
+Cesium.Ion.defaultAccessToken = "";
+Cesium.Ion.defaultServer = "";
+
+// viewer: disable almost everything, use custom imagery and terrain providers
+var viewer = new Cesium.Viewer('cesiumContainer', {
+    geocoder: false
+    , baseLayerPicker: false
+    , sceneModePicker: false
+    , fullscreenButton: true
+    , navigationHelpButton: true
+    , homeButton: false
+    , infoBox: false
+    , timeline: false
+    , animation: false
+    , scene3DOnly: true
+    , navigationInstructionsInitiallyVisible: false
+    , selectionIndicator: false
+    , imageryProvider: null
+    , terrainProvider: null
+});
+
+try {
+  // Initialize a terrain provider which provides geoid conversion between gravity related (typically I3S datasets) and ellipsoidal based
+    // height systems (Cesium World Terrain).
+    // If this is not specified, or the URL is invalid no geoid conversion will be applied.
+    // The source data used in this transcoding service was compiled from https://earth-info.nga.mil/#tab_wgs84-data and is based on EGM2008 Gravity Model
+    const geoidService = await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+        "https://tiles.arcgis.com/tiles/z2tnIkrLQ2BRzr6P/arcgis/rest/services/EGM2008/ImageServer"
+    );
+
+    // Create i3s and Cesium3DTileset options to pass optional parameters useful for debugging and visualizing
+    const cesium3dTilesetOptions = {
+        skipLevelOfDetail: false
+        , debugShowBoundingVolume: false
+        //      , debugShowUrl: true
+        //      , debugColorizeTiles: true
+    };
+
+    const i3sOptions = {
+        traceFetches: false // for tracing I3S fetches
+        , geoidTiledTerrainProvider: geoidService // pass the geoid service
+        , cesium3dTilesetOptions: cesium3dTilesetOptions // options for internal Cesium3dTileset
+    };
+
+    // Create I3S data provider
+    const i3sProvider = await Cesium.I3SDataProvider.fromUrl(
+        "layers/0"
+        , i3sOptions
+    );
+
+    // Add the i3s layer provider as a primitive data type
+    viewer.scene.primitives.add(i3sProvider);
+
+    // Center camera on I3S once it's loaded
+    const center = Cesium.Rectangle.center(i3sProvider.extent);
+    center.height = 500.0;
+    viewer.camera.setView({
+        destination: Cesium.Ellipsoid.WGS84.cartographicToCartesian(center),
+    });
+} catch (error) {
+    console.log(
+        `There was an error creating the I3S Data Provider: ${error}`
+    );
+}
+  </script>
+
+</body>
+</html>

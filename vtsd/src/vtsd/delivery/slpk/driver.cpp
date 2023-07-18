@@ -36,10 +36,22 @@
 
 #include "driver.hpp"
 
+// Generated from browser/browser.html.
+// NB: Generated file to be found in binary dir, not source dir
+#include "delivery/slpk/browser/browser.html.hpp"
+
 namespace fs = boost::filesystem;
 namespace ba = boost::algorithm;
 
 namespace {
+
+const vs::SupportFile broserFile = {
+    i3s::browser::browser_html
+    , sizeof(i3s::browser::browser_html)
+    , i3s::browser::browser_html_attr_lastModified
+    , "text/html; charset=utf-8"
+    , true
+};
 
 class SlpkDriver : public DriverWrapper
 {
@@ -67,6 +79,8 @@ SlpkDriver::SlpkDriver(slpk::Archive &&reader)
 void SlpkDriver::handle(Sink sink, const Location &location
                         , const LocationConfig &)
 {
+    LOG(info4) << "location.path: <" << location.path << ">";
+
     // do not allow empty path
     if (location.path.empty()) { throw RedirectToDir(); }
 
@@ -74,7 +88,13 @@ void SlpkDriver::handle(Sink sink, const Location &location
     if (location.path == "/") {
         throw ListContent({
             { "SceneServer" }
+            , { "SceneServer/browser.html" }
         }, true);
+    }
+
+    if (location.path == "SceneServer/browser.html") {
+        sink.content(broserFile);
+        return;
     }
 
     roarchive::IStream::pointer is;

@@ -41,12 +41,17 @@ set(vtsd-internals_SOURCES
 set(tdt2vts_BROWSER_SOURCES
   delivery/vts/tdt2vts/support.hpp delivery/vts/tdt2vts/support.cpp
   )
+
 file_to_cpp(tdt2vts_BROWSER_SOURCES
   vts2tdt::browser::index_html
   delivery/vts/tdt2vts/index.html)
 
+file_to_cpp(i3s_BROWSER_SOURCES
+  i3s::browser::browser_html
+  delivery/slpk/browser/browser.html)
+
 set(vtsd-internals_SOURCES ${vtsd-internals_SOURCES}
-  ${tdt2vts_BROWSER_SOURCES})
+  ${tdt2vts_BROWSER_SOURCES} ${i3s_BROWSER_SOURCES})
 
 add_library(vtsd-internals ${vtsd-internals_SOURCES})
 target_link_libraries(vtsd-internals ${MODULE_LIBRARIES})

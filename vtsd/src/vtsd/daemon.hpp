@@ -28,6 +28,7 @@
 #define vtsd_daemon_hpp_included_
 
 #include <cstdlib>
+#include <optional>
 
 #include <boost/optional.hpp>
 #include <boost/filesystem/path.hpp>
@@ -158,6 +159,8 @@ private:
     boost::optional<DeliveryCache> deliveryCache_;
 
     bool proxiesConfigured_;
+
+    std::string serverName_;
 };
 
 #endif // vtsd_daemon_hpp_included_
