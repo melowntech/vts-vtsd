@@ -16,6 +16,11 @@
 
   <script type="module">
 
+/**
+*  See https://cesium.com/learn/cesiumjs/ref-doc/I3SDataProvider.html
+*  for details.
+*/
+
 // disable Cesium ion
 Cesium.Ion.defaultAccessToken = "";
 Cesium.Ion.defaultServer = "";
@@ -38,8 +43,43 @@ var viewer = new Cesium.Viewer('cesiumContainer', {
     , terrainProvider: null
 });
 
+var initialPosition = null;
+
+function enabled(hash, key, dflt = false) {
+    let value = hash.get(key);
+    if ((value === null) || (value === "")) { return dflt; }
+
+    if (["false", "0", "no", "off"].includes(value)) { return false; }
+    if (["true", "1", "yes", "on"].includes(value)) { return true; }
+    console.log("Invalid boolean value for enable key", key, ":", value);
+    return dflt;
+}
+
 try {
-  // Initialize a terrain provider which provides geoid conversion between gravity related (typically I3S datasets) and ellipsoidal based
+    let url = new URL(location.href);
+    let hash = new URLSearchParams(url.hash.substring(1));
+
+    if (hash.has("pos")) {
+        let p = hash.get("pos")
+        try {
+            let a = p.split(",");
+            initialPosition = {
+                position: new Cesium.Cartesian3(parseFloat(a[0])
+                                                , parseFloat(a[1])
+                                                , parseFloat(a[2]))
+                , direction: new Cesium.Cartesian3(parseFloat(a[3])
+                                                , parseFloat(a[4])
+                                                , parseFloat(a[5]))
+                , up: new Cesium.Cartesian3(parseFloat(a[6])
+                                            , parseFloat(a[7])
+                                            , parseFloat(a[8]))
+            }
+        } catch (e) {
+            console.log("Unable to parse initial position: ", p);
+        }
+    }
+
+    // Initialize a terrain provider which provides geoid conversion between gravity related (typically I3S datasets) and ellipsoidal based
     // height systems (Cesium World Terrain).
     // If this is not specified, or the URL is invalid no geoid conversion will be applied.
     // The source data used in this transcoding service was compiled from https://earth-info.nga.mil/#tab_wgs84-data and is based on EGM2008 Gravity Model
@@ -50,9 +90,9 @@ try {
     // Create i3s and Cesium3DTileset options to pass optional parameters useful for debugging and visualizing
     const cesium3dTilesetOptions = {
         skipLevelOfDetail: false
-        , debugShowBoundingVolume: false
-        //      , debugShowUrl: true
-        //      , debugColorizeTiles: true
+        , debugShowBoundingVolume: enabled(hash, "showBoundingVolume")
+        , debugShowGeometricError: enabled(hash, "showGeometricError")
+        , debugShowUrl: enabled(hash, "showUrl")
     };
 
     const i3sOptions = {
@@ -70,17 +110,45 @@ try {
     // Add the i3s layer provider as a primitive data type
     viewer.scene.primitives.add(i3sProvider);
 
-    // Center camera on I3S once it's loaded
-    const center = Cesium.Rectangle.center(i3sProvider.extent);
-    center.height = 500.0;
-    viewer.camera.setView({
-        destination: Cesium.Ellipsoid.WGS84.cartographicToCartesian(center),
-    });
+    if (initialPosition) {
+        let c = viewer.scene.camera;
+        c.position = initialPosition.position;
+        c.direction = initialPosition.direction;
+        c.up = initialPosition.up;
+    } else {
+        // Center camera on I3S once it's loaded
+        const center = Cesium.Rectangle.center(i3sProvider.extent);
+        center.height = 5000.0;
+        viewer.camera.setView({
+            destination: Cesium.Ellipsoid.WGS84.cartographicToCartesian(center)
+        });
+    }
 } catch (error) {
     console.log(
         `There was an error creating the I3S Data Provider: ${error}`
     );
 }
+
+viewer.scene.camera.moveEnd.addEventListener(function() {
+    try {
+        let c = viewer.scene.camera;
+
+        let p = [ c.position.x, c.position.y, c.position.z
+                  , c.direction.x, c.direction.y, c.direction.z
+                  , c.up.x, c.up.y, c.up.z ];
+
+        let url = new URL(location.href);
+        let hash = new URLSearchParams(url.hash.substring(1));
+
+        hash.set("pos", p.toString());
+        url.hash = "#" + hash.toString();
+
+        history.replaceState(history.state, document.title, url)
+    } catch (e) {
+        console.log("Error in moveEnd: ", e);
+    }
+});
+
   </script>
 
 </body>
