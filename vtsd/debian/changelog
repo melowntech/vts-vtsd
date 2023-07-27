@@ -1,3 +1,9 @@
+vts-vtsd (1.38) stable; urgency=medium
+
+  * Added Cesium-based I3S browser.
+
+ -- Vaclav Blazek <vaclav.blazek@melown.com>  Thu, 27 Jul 2023 11:04:05 +0200
+
 vts-vtsd (1.37) stable; urgency=medium
 
   * Added support for options in storageview for mesh tiled freelayers
